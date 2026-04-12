@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import {
   Folder, Plus, Search, TrendingUp, GitCommit, FileCode, Code2,
@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
+import { CreateProjectModal } from '@/components/dashboard/CreateProjectModal'
 
 // Tipo simplificado para la BD real
 interface DBProject {
@@ -115,39 +116,40 @@ export default function ProjectsPage() {
   const [gitMetrics, setGitMetrics] = useState<Record<string, GitMetrics>>({})
   const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(true)
+  const [showCreateModal, setShowCreateModal] = useState(false)
+
+  const fetchData = useCallback(async () => {
+    try {
+      // Fetch projects
+      const { data: projectsData } = await supabase
+        .from('projects')
+        .select('id, name, slug, color, active')
+        .order('name')
+
+      if (projectsData && projectsData.length > 0) {
+        setProjects(projectsData)
+      }
+
+      // Fetch git metrics from API (ahora incluye datos de Supabase)
+      try {
+        const res = await fetch('/api/git-metrics')
+        if (res.ok) {
+          const metricsData = await res.json()
+          setGitMetrics(metricsData)
+        }
+      } catch (gitErr) {
+        console.error('Error fetching git metrics:', gitErr)
+      }
+    } catch (err) {
+      console.error('Error fetching data:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
-    async function fetchData() {
-      try {
-        // Fetch projects
-        const { data: projectsData } = await supabase
-          .from('projects')
-          .select('id, name, slug, color, active')
-          .order('name')
-
-        if (projectsData && projectsData.length > 0) {
-          setProjects(projectsData)
-        }
-
-        // Fetch git metrics from API (ahora incluye datos de Supabase)
-        try {
-          const res = await fetch('/api/git-metrics')
-          if (res.ok) {
-            const metricsData = await res.json()
-            setGitMetrics(metricsData)
-          }
-        } catch (gitErr) {
-          console.error('Error fetching git metrics:', gitErr)
-        }
-      } catch (err) {
-        console.error('Error fetching data:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
-
     fetchData()
-  }, [])
+  }, [fetchData])
 
   const filteredProjects = projects.filter(
     (project) =>
@@ -183,7 +185,10 @@ export default function ProjectsPage() {
               Vista general de todos los proyectos activos con metricas Git reales
             </p>
           </div>
-          <button className="px-4 py-2 bg-accent text-white rounded-lg flex items-center gap-2 hover:bg-accent/90 transition-colors">
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="px-4 py-2 bg-accent text-white rounded-lg flex items-center gap-2 hover:bg-accent/90 transition-colors"
+          >
             <Plus className="w-4 h-4" />
             Nuevo Proyecto
           </button>
@@ -442,6 +447,13 @@ export default function ProjectsPage() {
           <p className="text-sm">Intenta con otro termino de busqueda</p>
         </motion.div>
       )}
+
+      {/* Create Project Modal */}
+      <CreateProjectModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSuccess={fetchData}
+      />
     </div>
   )
 }
