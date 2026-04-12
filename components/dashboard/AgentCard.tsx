@@ -1,7 +1,7 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { FileCode, Clock, Wrench, Folder, AlertCircle, Type } from 'lucide-react'
+import { FileCode, Clock, Wrench, Folder, AlertCircle } from 'lucide-react'
 import { cn, formatTime } from '@/lib/utils'
 import type { AgentSession } from '@/types/database'
 

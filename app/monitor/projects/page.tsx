@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Folder, Plus, Search, Activity, Clock, TrendingUp, GitCommit, FileCode, Code2 } from 'lucide-react'
+import { Folder, Plus, Search, Activity, TrendingUp, GitCommit, FileCode, Code2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 

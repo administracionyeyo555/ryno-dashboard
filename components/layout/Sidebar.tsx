@@ -68,7 +68,6 @@ export function Sidebar() {
 
   // Nombre de usuario mostrado (fallback a RYNOADMIN)
   const displayName = user?.displayName || 'RYNOADMIN'
-  const username = user?.username || 'admin'
   const role = user?.role === 'admin' ? 'Administrador' : 'Usuario'
 
   return (
