@@ -20,6 +20,7 @@
 -- Eliminar triggers existentes
 DROP TRIGGER IF EXISTS update_project_status_updated_at ON project_status;
 DROP TRIGGER IF EXISTS update_tasks_updated_at ON tasks;
+DROP TRIGGER IF EXISTS update_project_metrics_updated_at ON project_metrics;
 
 -- Eliminar funcion de trigger si existe
 DROP FUNCTION IF EXISTS update_updated_at_column();
@@ -29,6 +30,7 @@ DROP TABLE IF EXISTS agent_events CASCADE;
 DROP TABLE IF EXISTS agent_sessions CASCADE;
 DROP TABLE IF EXISTS tasks CASCADE;
 DROP TABLE IF EXISTS project_status CASCADE;
+DROP TABLE IF EXISTS project_metrics CASCADE;
 DROP TABLE IF EXISTS projects CASCADE;
 
 -- ============================================================================
@@ -139,6 +141,45 @@ COMMENT ON COLUMN tasks.created_by IS 'Quien creo la tarea: human o nombre del a
 COMMENT ON COLUMN tasks.assigned_to IS 'Agente o persona asignada a la tarea';
 
 -- ============================================================================
+-- TABLA: project_metrics
+-- ============================================================================
+-- Metricas de git para cada proyecto. Se actualiza cuando se accede al API
+-- desde el entorno local, y se lee desde Vercel donde no hay acceso a git.
+
+CREATE TABLE project_metrics (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_slug TEXT UNIQUE NOT NULL,
+    commits INTEGER,
+    files INTEGER,
+    lines TEXT,
+    last_commit_message TEXT,
+    last_commit_author TEXT,
+    last_commit_date TIMESTAMPTZ,
+    last_commit_time_ago TEXT,
+    current_branch TEXT,
+    uncommitted_files INTEGER,
+    health_status TEXT CHECK (health_status IN ('green', 'yellow', 'red')) DEFAULT 'red',
+    health_score INTEGER DEFAULT 0,
+    last_activity_days_ago INTEGER,
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+COMMENT ON TABLE project_metrics IS 'Metricas de git cacheadas para acceso desde Vercel';
+COMMENT ON COLUMN project_metrics.project_slug IS 'Slug del proyecto (key unica)';
+COMMENT ON COLUMN project_metrics.commits IS 'Total de commits en el repositorio';
+COMMENT ON COLUMN project_metrics.files IS 'Total de archivos rastreados por git';
+COMMENT ON COLUMN project_metrics.lines IS 'Lineas de codigo (formato: 12.5k)';
+COMMENT ON COLUMN project_metrics.last_commit_message IS 'Mensaje del ultimo commit';
+COMMENT ON COLUMN project_metrics.last_commit_author IS 'Autor del ultimo commit';
+COMMENT ON COLUMN project_metrics.last_commit_date IS 'Fecha del ultimo commit';
+COMMENT ON COLUMN project_metrics.last_commit_time_ago IS 'Tiempo relativo del ultimo commit (ej: 2 days ago)';
+COMMENT ON COLUMN project_metrics.current_branch IS 'Rama activa del repositorio';
+COMMENT ON COLUMN project_metrics.uncommitted_files IS 'Archivos con cambios sin commitear';
+COMMENT ON COLUMN project_metrics.health_status IS 'Estado de salud: green, yellow, red';
+COMMENT ON COLUMN project_metrics.health_score IS 'Puntaje de salud (0-100)';
+COMMENT ON COLUMN project_metrics.updated_at IS 'Ultima vez que se actualizaron las metricas';
+
+-- ============================================================================
 -- INDICES PARA OPTIMIZAR CONSULTAS FRECUENTES
 -- ============================================================================
 
@@ -170,6 +211,10 @@ CREATE INDEX idx_tasks_priority ON tasks(priority);
 CREATE INDEX idx_tasks_created_at ON tasks(created_at DESC);
 CREATE INDEX idx_tasks_assigned_to ON tasks(assigned_to);
 
+-- Indices para project_metrics
+CREATE INDEX idx_project_metrics_project_slug ON project_metrics(project_slug);
+CREATE INDEX idx_project_metrics_updated_at ON project_metrics(updated_at DESC);
+
 -- ============================================================================
 -- FUNCION Y TRIGGER PARA ACTUALIZAR updated_at
 -- ============================================================================
@@ -190,6 +235,12 @@ CREATE TRIGGER update_project_status_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
+-- Trigger para project_metrics
+CREATE TRIGGER update_project_metrics_updated_at
+    BEFORE UPDATE ON project_metrics
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
 -- ============================================================================
 -- ROW LEVEL SECURITY (RLS)
 -- ============================================================================
@@ -202,6 +253,7 @@ ALTER TABLE agent_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE agent_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE project_status ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE project_metrics ENABLE ROW LEVEL SECURITY;
 
 -- Politicas permisivas para projects
 CREATE POLICY "Allow all access to projects" ON projects
@@ -221,6 +273,10 @@ CREATE POLICY "Allow all access to project_status" ON project_status
 
 -- Politicas permisivas para tasks
 CREATE POLICY "Allow all access to tasks" ON tasks
+    FOR ALL USING (true) WITH CHECK (true);
+
+-- Politicas permisivas para project_metrics
+CREATE POLICY "Allow all access to project_metrics" ON project_metrics
     FOR ALL USING (true) WITH CHECK (true);
 
 -- ============================================================================
@@ -263,19 +319,21 @@ END $$;
 -- SEED DATA - DATOS INICIALES
 -- ============================================================================
 
--- Insertar los 4 proyectos principales
+-- Insertar los 5 proyectos principales
 INSERT INTO projects (name, slug, color, active) VALUES
     ('ASOTOY', 'asotoy', '#CC0000', true),
     ('Caracas Golf Market', 'caracas-golf-market', '#2D5016', true),
     ('DABI', 'dabi', '#7C3AED', true),
-    ('Flowmando Platform', 'flowmando-platform', '#FF6B35', true);
+    ('Flowmando Platform', 'flowmando-platform', '#FF6B35', true),
+    ('Flowmando', 'flowmando', '#3B82F6', true);
 
 -- Insertar estado inicial para cada proyecto
 INSERT INTO project_status (project_slug, tasks_completed, tasks_pending, health) VALUES
     ('asotoy', 0, 0, 'green'),
     ('caracas-golf-market', 0, 0, 'green'),
     ('dabi', 0, 0, 'green'),
-    ('flowmando-platform', 0, 0, 'green');
+    ('flowmando-platform', 0, 0, 'green'),
+    ('flowmando', 0, 0, 'green');
 
 -- ============================================================================
 -- VERIFICACION FINAL

@@ -1,9 +1,12 @@
 'use client'
 
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useDashboardStore } from '@/stores/dashboard-store'
 import type { AgentSession, AgentEvent } from '@/types/database'
+
+// Cleanup interval: 5 minutes
+const CLEANUP_INTERVAL_MS = 5 * 60 * 1000
 
 export function useRealtimeAgents() {
   const {
@@ -14,6 +17,31 @@ export function useRealtimeAgents() {
     removeSession,
     addEvent,
   } = useDashboardStore()
+
+  const cleanupIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Function to call the cleanup API
+  const cleanupStaleSessions = useCallback(async () => {
+    try {
+      const response = await fetch('/api/cleanup-sessions', {
+        method: 'POST',
+      })
+
+      if (!response.ok) {
+        console.error('[useRealtimeAgents] Cleanup API error:', response.status)
+        return
+      }
+
+      const result = await response.json()
+
+      if (result.cleaned > 0) {
+        console.log(`[useRealtimeAgents] Cleaned ${result.cleaned} stale sessions`)
+        // The realtime subscription will handle removing them from the UI
+      }
+    } catch (error) {
+      console.error('[useRealtimeAgents] Failed to cleanup stale sessions:', error)
+    }
+  }, [])
 
   const fetchActiveSessions = useCallback(async () => {
     const { data, error } = await supabase
@@ -50,6 +78,10 @@ export function useRealtimeAgents() {
 
   useEffect(() => {
     fetchActiveSessions()
+
+    // Run cleanup immediately on mount, then every 5 minutes
+    cleanupStaleSessions()
+    cleanupIntervalRef.current = setInterval(cleanupStaleSessions, CLEANUP_INTERVAL_MS)
 
     // Subscribe to session changes
     const sessionChannel = supabase
@@ -122,9 +154,15 @@ export function useRealtimeAgents() {
     return () => {
       supabase.removeChannel(sessionChannel)
       supabase.removeChannel(eventChannel)
+      // Clear the cleanup interval
+      if (cleanupIntervalRef.current) {
+        clearInterval(cleanupIntervalRef.current)
+        cleanupIntervalRef.current = null
+      }
     }
   }, [
     fetchActiveSessions,
+    cleanupStaleSessions,
     addSession,
     updateSession,
     removeSession,

@@ -53,21 +53,37 @@ export function SessionDetailModal({ session, isOpen, onClose }: SessionDetailMo
     setLoading(true)
     setError(null)
 
-    const { data, error: fetchError } = await supabase
-      .from('agent_events')
-      .select('*')
-      .eq('session_id', session.id)
-      .order('created_at', { ascending: false })
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('agent_events')
+        .select('*')
+        .eq('session_id', session.id)
+        .order('timestamp', { ascending: false })
 
-    if (fetchError) {
-      console.error('Error fetching session events:', fetchError)
-      setError('Error al cargar los eventos')
+      if (fetchError) {
+        console.error('Error fetching session events:', fetchError)
+        setError(`Error al cargar los eventos: ${fetchError.message}`)
+        setLoading(false)
+        return
+      }
+
+      // Transform database fields to match component expectations
+      const transformedEvents = (data || []).map(event => ({
+        ...event,
+        // Map 'timestamp' to 'created_at' for backward compatibility in display
+        created_at: event.timestamp,
+        // Map 'detail' to 'metadata' for backward compatibility
+        metadata: event.detail,
+        message: event.detail?.message || null,
+      }))
+
+      setEvents(transformedEvents as AgentEvent[])
+    } catch (err) {
+      console.error('Unexpected error fetching events:', err)
+      setError('Error inesperado al cargar los eventos')
+    } finally {
       setLoading(false)
-      return
     }
-
-    setEvents(data || [])
-    setLoading(false)
   }, [session.id])
 
   useEffect(() => {
@@ -258,7 +274,7 @@ export function SessionDetailModal({ session, isOpen, onClose }: SessionDetailMo
                                 )}
                               </div>
                               <span className="text-xs text-muted">
-                                {formatDateTime(event.created_at)}
+                                {formatDateTime(event.timestamp)}
                               </span>
                             </div>
 

@@ -56,7 +56,7 @@ function MiniTimelineEvent({ event, index }: { event: AgentEvent; index: number 
         </span>
       )}
       <span className="text-muted/70 ml-auto">
-        {formatRelativeTimeShort(event.created_at)}
+        {formatRelativeTimeShort(event.timestamp)}
       </span>
     </motion.div>
   )
@@ -94,7 +94,7 @@ export function AgentCard({ session, index = 0, isDemo = false, onClick }: Agent
       .from('agent_events')
       .select('*')
       .eq('session_id', session.id)
-      .order('created_at', { ascending: false })
+      .order('timestamp', { ascending: false })
       .limit(3)
 
     if (error) {
@@ -102,7 +102,16 @@ export function AgentCard({ session, index = 0, isDemo = false, onClick }: Agent
       return
     }
 
-    setRecentEvents(data || [])
+    // Transform database fields to match component expectations
+    const transformedEvents = (data || []).map(event => ({
+      ...event,
+      // Map 'timestamp' to fields used in display
+      created_at: event.timestamp,
+      metadata: event.detail,
+      message: event.detail?.message || null,
+    }))
+
+    setRecentEvents(transformedEvents as AgentEvent[])
   }, [session.id, isDemo])
 
   // Calculate running time from started_at

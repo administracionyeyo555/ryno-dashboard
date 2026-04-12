@@ -174,3 +174,162 @@ chmod +x scripts/claude-hook.js
 ## Soporte
 
 Para reportar problemas o sugerencias, contacta al equipo de Flowmando.
+
+---
+
+# Git Metrics Sync
+
+Script para sincronizar metricas de repositorios git locales a Supabase.
+
+## Archivos
+
+| Archivo | Descripcion |
+|---------|-------------|
+| `sync-metrics.js` | Script Node.js que recolecta metricas git y las envia a Supabase |
+| `sync-metrics.bat` | Script batch para Windows Task Scheduler |
+| `project_metrics.sql` | SQL para crear la tabla en Supabase |
+
+## Metricas Recolectadas
+
+Para cada proyecto:
+- **commits**: Total de commits (`git rev-list --count HEAD`)
+- **files**: Total de archivos trackeados (`git ls-files`)
+- **lines**: Lineas de codigo (suma de todas las lineas de archivos no-binarios)
+- **last_commit_message**: Mensaje del ultimo commit
+- **last_commit_author**: Autor del ultimo commit
+- **last_commit_date**: Fecha del ultimo commit
+- **branch**: Branch actual (`git branch --show-current`)
+- **uncommitted_files**: Archivos con cambios sin commit (`git status --porcelain`)
+- **health_score**: Puntuacion de salud calculada (0-100)
+
+## Proyectos Monitoreados
+
+| Slug | Path |
+|------|------|
+| caracas-golf-market | `C:\Users\EQUIPO\Desktop\caracas-golf-market` |
+| dabi | `C:\Users\EQUIPO\Desktop\dabi` |
+| flowmando-platform | `C:\Users\EQUIPO\Desktop\flowmando-platform` |
+| flowmando | `C:\Users\EQUIPO\Desktop\flowmando` |
+
+## Instalacion
+
+### 1. Crear la tabla en Supabase
+
+1. Abre el SQL Editor de Supabase: https://supabase.com/dashboard/project/xzkasvcqvddmgybzajeu/sql/new
+2. Copia y ejecuta el contenido de `project_metrics.sql`
+3. Verifica que la tabla `project_metrics` fue creada
+
+### 2. Verificar credenciales
+
+Asegurate que `.env.local` en la raiz del proyecto contiene:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://xzkasvcqvddmgybzajeu.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=tu-clave-anonima
+```
+
+### 3. Ejecutar manualmente
+
+```bash
+# Desde la raiz del proyecto
+node scripts/sync-metrics.js
+```
+
+Salida esperada:
+```
+========================================
+Git Metrics Sync - RYNO Studio
+========================================
+Time: 2026-04-12T20:00:00.000Z
+Supabase URL: https://xzkasvcqvddmgybzajeu.supabase.co
+
+  Collecting metrics for caracas-golf-market...
+    Commits: 31
+    Files: 113
+    Lines: 27,529
+    Branch: main
+    Uncommitted: 9
+    Health Score: 70
+
+  ...
+
+----------------------------------------
+Syncing to Supabase...
+
+  [OK] caracas-golf-market
+  [OK] dabi
+  [OK] flowmando-platform
+
+========================================
+Sync complete: 3 success, 0 errors
+========================================
+```
+
+## Automatizacion con Windows Task Scheduler
+
+### Opcion 1: Usando el archivo .bat
+
+1. Abre **Task Scheduler** (Programador de tareas)
+2. Click en **Create Basic Task...**
+3. Nombre: `Git Metrics Sync`
+4. Descripcion: `Sincroniza metricas de git a Supabase`
+5. Trigger: **Daily** o la frecuencia deseada
+6. Action: **Start a program**
+   - Program: `C:\Users\EQUIPO\Documents\CEREBRO FLOWMANDO 3\scripts\sync-metrics.bat`
+   - Start in: `C:\Users\EQUIPO\Documents\CEREBRO FLOWMANDO 3`
+7. Finalizar
+
+### Opcion 2: Ejecutando Node directamente
+
+1. Abre **Task Scheduler** (Programador de tareas)
+2. Click en **Create Task...** (para mas opciones)
+3. General:
+   - Nombre: `Git Metrics Sync`
+   - Run whether user is logged on or not (opcional)
+4. Triggers:
+   - New... -> Daily, cada 1 dia, repetir cada 6 horas (por ejemplo)
+5. Actions:
+   - New...
+   - Action: Start a program
+   - Program/script: `node`
+   - Arguments: `scripts\sync-metrics.js`
+   - Start in: `C:\Users\EQUIPO\Documents\CEREBRO FLOWMANDO 3`
+6. Conditions: Desmarcar "Start only if the computer is on AC power" si es laptop
+7. OK
+
+### Verificar que funciona
+
+1. En Task Scheduler, click derecho en la tarea -> **Run**
+2. Verifica los logs en `logs/sync-metrics-*.log`
+3. Verifica los datos en Supabase
+
+## Health Score
+
+La puntuacion de salud se calcula asi:
+
+| Factor | Impacto |
+|--------|---------|
+| Base | 100 puntos |
+| Archivos sin commit | -5 puntos por archivo (max -30) |
+| Branch no-main con muchos cambios | -10 puntos |
+| Ultimo commit > 30 dias | -10 puntos |
+| Ultimo commit > 90 dias | -20 puntos |
+| Minimo si hay commits | 20 puntos |
+
+## Troubleshooting
+
+### Error: "Missing Supabase credentials"
+
+Verifica que `.env.local` existe y contiene las credenciales correctas.
+
+### Error: "Could not find the table 'project_metrics'"
+
+Ejecuta el SQL de `project_metrics.sql` en Supabase.
+
+### Error: "Not a git repository"
+
+El directorio no es un repositorio git. Inicializalo con `git init` o verificalo.
+
+### El script tarda mucho
+
+El conteo de lineas puede tardar en proyectos grandes. Los archivos > 1MB y binarios se saltan automaticamente.

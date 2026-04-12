@@ -7,22 +7,30 @@ import { createClient } from '@supabase/supabase-js'
 
 const execAsync = promisify(exec)
 
+// Detectar si estamos en Vercel
+const isVercel = process.env.VERCEL === '1' || process.env.VERCEL === 'true' || !!process.env.VERCEL_ENV
+
 // Cliente Supabase para el servidor
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-// Mapeo de slugs a rutas de repositorios
+// Mapeo de slugs a rutas de repositorios (solo usado localmente)
 const repoPathMap: Record<string, string> = {
   'caracas-golf-market': 'C:\\Users\\EQUIPO\\Desktop\\caracas-golf-market',
   'dabi': 'C:\\Users\\EQUIPO\\Desktop\\dabi',
   'flowmando-platform': 'C:\\Users\\EQUIPO\\Desktop\\flowmando-platform',
+  'flowmando': 'C:\\Users\\EQUIPO\\Desktop\\flowmando',
 }
+
+// Lista de todos los proyectos (usada en Vercel para saber que proyectos buscar)
+const projectSlugs = Object.keys(repoPathMap)
 
 interface LastCommit {
   message: string
   timeAgo: string
   timestamp: Date | null
+  author?: string
 }
 
 interface AgentSession {
@@ -52,6 +60,132 @@ interface GitMetrics {
   healthStatus: HealthStatus
   healthScore: number
   lastActivityDaysAgo: number | null
+}
+
+// Interface para la tabla project_metrics en Supabase
+interface ProjectMetricsRow {
+  id?: string
+  project_slug: string
+  commits: number | null
+  files: number | null
+  lines: string | null
+  last_commit_message: string | null
+  last_commit_author: string | null
+  last_commit_date: string | null
+  last_commit_time_ago: string | null
+  current_branch: string | null
+  uncommitted_files: number | null
+  health_status: HealthStatus
+  health_score: number
+  last_activity_days_ago: number | null
+  updated_at?: string
+}
+
+// Guardar metricas git en Supabase (solo se ejecuta localmente)
+async function saveMetricsToSupabase(slug: string, metrics: GitMetrics): Promise<void> {
+  try {
+    const row: Omit<ProjectMetricsRow, 'id' | 'updated_at'> = {
+      project_slug: slug,
+      commits: metrics.commits,
+      files: metrics.files,
+      lines: metrics.lines,
+      last_commit_message: metrics.lastCommit?.message || null,
+      last_commit_author: metrics.lastCommit?.author || null,
+      last_commit_date: metrics.lastCommit?.timestamp?.toISOString() || null,
+      last_commit_time_ago: metrics.lastCommit?.timeAgo || null,
+      current_branch: metrics.currentBranch,
+      uncommitted_files: metrics.uncommittedFiles,
+      health_status: metrics.healthStatus,
+      health_score: metrics.healthScore,
+      last_activity_days_ago: metrics.lastActivityDaysAgo
+    }
+
+    const { error } = await supabase
+      .from('project_metrics')
+      .upsert(row, { onConflict: 'project_slug' })
+
+    if (error) {
+      console.log(`[git-metrics] Error saving metrics for ${slug}:`, error.message)
+    } else {
+      console.log(`[git-metrics] Saved metrics for ${slug} to Supabase`)
+    }
+  } catch (err) {
+    console.log(`[git-metrics] Exception saving metrics for ${slug}:`, err)
+  }
+}
+
+// Obtener metricas desde Supabase (usado en Vercel)
+async function getMetricsFromSupabase(slug: string): Promise<GitMetrics> {
+  const defaultMetrics: GitMetrics = {
+    commits: null,
+    files: null,
+    lines: null,
+    lastCommit: null,
+    currentBranch: null,
+    uncommittedFiles: null,
+    lastAgentSession: null,
+    taskStats: { completed: 0, pending: 0 },
+    healthStatus: 'red',
+    healthScore: 0,
+    lastActivityDaysAgo: null
+  }
+
+  try {
+    // Obtener metricas de git desde project_metrics
+    const { data: metricsData, error } = await supabase
+      .from('project_metrics')
+      .select('*')
+      .eq('project_slug', slug)
+      .single()
+
+    if (error || !metricsData) {
+      console.log(`[git-metrics] No cached metrics found for ${slug}`)
+      const supabaseData = await getSupabaseMetrics(slug)
+      return { ...defaultMetrics, ...supabaseData }
+    }
+
+    // Reconstruir lastCommit
+    let lastCommit: LastCommit | null = null
+    if (metricsData.last_commit_message) {
+      lastCommit = {
+        message: metricsData.last_commit_message,
+        timeAgo: metricsData.last_commit_time_ago || '',
+        author: metricsData.last_commit_author || undefined,
+        timestamp: metricsData.last_commit_date ? new Date(metricsData.last_commit_date) : null
+      }
+    }
+
+    // Obtener datos adicionales de Supabase (sesiones, tareas)
+    const supabaseData = await getSupabaseMetrics(slug)
+
+    // Recalcular health status basado en datos actuales
+    let lastActivity: Date | null = lastCommit?.timestamp || null
+    if (supabaseData.lastAgentSession?.started_at) {
+      const sessionDate = new Date(supabaseData.lastAgentSession.started_at)
+      if (!lastActivity || sessionDate > lastActivity) {
+        lastActivity = sessionDate
+      }
+    }
+    const healthInfo = calculateHealthStatus(lastActivity)
+
+    return {
+      commits: metricsData.commits,
+      files: metricsData.files,
+      lines: metricsData.lines,
+      lastCommit,
+      currentBranch: metricsData.current_branch,
+      uncommittedFiles: metricsData.uncommitted_files,
+      lastAgentSession: supabaseData.lastAgentSession,
+      taskStats: supabaseData.taskStats,
+      healthStatus: healthInfo.status,
+      healthScore: healthInfo.score,
+      lastActivityDaysAgo: healthInfo.daysAgo
+    }
+  } catch (err) {
+    console.log(`[git-metrics] Error fetching metrics from Supabase for ${slug}:`, err)
+    const supabaseData = await getSupabaseMetrics(slug)
+    return { ...defaultMetrics, ...supabaseData }
+  }
 }
 
 async function runGitCommand(command: string, cwd: string): Promise<string | null> {
@@ -172,18 +306,20 @@ async function getGitMetrics(slug: string, repoPath: string): Promise<GitMetrics
   let uncommittedFiles: number | null = null
   let lastCommitTimestamp: Date | null = null
 
-  // 1. Ultimo commit: mensaje y tiempo relativo
-  const lastCommitOutput = await runGitCommand('git log -1 --pretty=format:"%s|%ar|%ci"', repoPath)
+  // 1. Ultimo commit: mensaje, autor, y tiempo relativo
+  const lastCommitOutput = await runGitCommand('git log -1 --pretty=format:"%s|%an|%ar|%ci"', repoPath)
   if (lastCommitOutput) {
     const parts = lastCommitOutput.split('|')
-    if (parts.length >= 3) {
+    if (parts.length >= 4) {
       lastCommit = {
         message: parts[0].replace(/^"|"$/g, ''),
-        timeAgo: parts[1]
-      } as LastCommit
+        author: parts[1],
+        timeAgo: parts[2],
+        timestamp: null
+      }
       // Parsear timestamp ISO para calcular health
       try {
-        lastCommitTimestamp = new Date(parts[2])
+        lastCommitTimestamp = new Date(parts[3])
         lastCommit.timestamp = lastCommitTimestamp
       } catch {
         lastCommit.timestamp = null
@@ -288,11 +424,27 @@ async function getGitMetrics(slug: string, repoPath: string): Promise<GitMetrics
 export async function GET() {
   const metrics: Record<string, GitMetrics> = {}
 
-  await Promise.all(
-    Object.entries(repoPathMap).map(async ([slug, repoPath]) => {
-      metrics[slug] = await getGitMetrics(slug, repoPath)
-    })
-  )
+  if (isVercel) {
+    // En Vercel: obtener metricas desde Supabase
+    console.log('[git-metrics] Running on Vercel - fetching from Supabase')
+    await Promise.all(
+      projectSlugs.map(async (slug) => {
+        metrics[slug] = await getMetricsFromSupabase(slug)
+      })
+    )
+  } else {
+    // Localmente: leer desde git y guardar en Supabase
+    console.log('[git-metrics] Running locally - reading from git repos')
+    await Promise.all(
+      Object.entries(repoPathMap).map(async ([slug, repoPath]) => {
+        const gitMetrics = await getGitMetrics(slug, repoPath)
+        metrics[slug] = gitMetrics
+
+        // Guardar metricas en Supabase para que Vercel pueda leerlas
+        await saveMetricsToSupabase(slug, gitMetrics)
+      })
+    )
+  }
 
   return NextResponse.json(metrics)
 }

@@ -36,13 +36,13 @@ export interface AgentSession {
 export interface AgentEvent {
   id: string
   session_id: string
-  project_id: string
   event_type: 'tool_use' | 'file_edit' | 'file_read' | 'error' | 'completion' | 'message'
   tool_name: string | null
   file_path: string | null
-  message: string | null
-  metadata: Record<string, unknown> | null
-  created_at: string
+  detail: Record<string, unknown> | null
+  timestamp: string
+  // Computed/virtual fields for convenience
+  message?: string | null
   session?: AgentSession
   project?: Project
 }
