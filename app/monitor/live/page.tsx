@@ -322,7 +322,7 @@ export default function LivePage() {
     return () => clearInterval(interval)
   }, [])
 
-  const runningCount = sessions.filter((s) => s.status === 'running').length
+  const runningCount = sessions.filter((s) => s.status === 'running' || s.status === 'active').length
   const idleCount = sessions.filter((s) => s.status === 'idle').length
 
   // Determinar si mostrar estado vacio real

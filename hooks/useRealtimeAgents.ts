@@ -19,7 +19,7 @@ export function useRealtimeAgents() {
     const { data, error } = await supabase
       .from('agent_sessions')
       .select('*, project:projects(*)')
-      .in('status', ['running', 'idle'])
+      .in('status', ['running', 'idle', 'active'])
       .order('started_at', { ascending: false })
 
     if (error) {
@@ -45,7 +45,7 @@ export function useRealtimeAgents() {
         },
         (payload) => {
           const newSession = payload.new as AgentSession
-          if (newSession.status === 'running' || newSession.status === 'idle') {
+          if (newSession.status === 'running' || newSession.status === 'idle' || newSession.status === 'active') {
             addSession(newSession)
           }
         }
@@ -61,7 +61,8 @@ export function useRealtimeAgents() {
           const updatedSession = payload.new as AgentSession
           if (
             updatedSession.status === 'completed' ||
-            updatedSession.status === 'error'
+            updatedSession.status === 'error' ||
+            updatedSession.status === 'stopped'
           ) {
             removeSession(updatedSession.id)
           } else {

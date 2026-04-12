@@ -37,19 +37,23 @@ function TypingIndicator() {
 export function AgentCard({ session, index = 0, isDemo = false }: AgentCardProps) {
   const statusColors = {
     running: 'bg-success',
+    active: 'bg-success',
     idle: 'bg-warning',
     error: 'bg-error',
     completed: 'bg-info',
+    stopped: 'bg-muted',
   }
 
   const statusLabels = {
     running: 'Running',
+    active: 'Active',
     idle: 'Idle',
     error: 'Error',
     completed: 'Completed',
+    stopped: 'Stopped',
   }
 
-  const isActive = session.status === 'running'
+  const isActive = session.status === 'running' || session.status === 'active'
 
   return (
     <motion.div

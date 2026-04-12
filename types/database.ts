@@ -23,7 +23,7 @@ export interface AgentSession {
   id: string
   project_id: string
   agent_name: string
-  status: 'running' | 'idle' | 'completed' | 'error'
+  status: 'running' | 'idle' | 'completed' | 'error' | 'active' | 'stopped'
   current_tool: string | null
   current_file: string | null
   started_at: string
