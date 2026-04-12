@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 
 // Tipo real de la BD
@@ -45,7 +45,8 @@ export interface TransformedEvent {
   id: string
   session_id: string
   project_id: string
-  event_type: 'tool_use' | 'file_edit' | 'file_read' | 'error' | 'completion' | 'message'
+  event_type: string // Mantener el tipo original de la BD
+  original_event_type: string // Tipo original sin transformar
   tool_name: string | null
   file_path: string | null
   message: string | null
@@ -67,9 +68,18 @@ export interface TransformedEvent {
   }
 }
 
-// Mapear event_type de la BD a tipos del frontend
-function mapEventType(dbEventType: string): TransformedEvent['event_type'] {
-  const typeMap: Record<string, TransformedEvent['event_type']> = {
+// Filtros para el hook
+export interface EventFilters {
+  projectSlug?: string | null
+  eventType?: string | null
+  dateFrom?: Date | null
+  dateTo?: Date | null
+  searchTerm?: string | null
+}
+
+// Mapear event_type de la BD a tipos del frontend (para compatibilidad)
+function mapEventType(dbEventType: string): string {
+  const typeMap: Record<string, string> = {
     'PostToolUse': 'tool_use',
     'PreToolUse': 'tool_use',
     'ToolUse': 'tool_use',
@@ -84,8 +94,10 @@ function mapEventType(dbEventType: string): TransformedEvent['event_type'] {
     'completion': 'completion',
     'Message': 'message',
     'message': 'message',
+    'SessionStart': 'SessionStart',
+    'Stop': 'Stop',
   }
-  return typeMap[dbEventType] || 'message'
+  return typeMap[dbEventType] || dbEventType
 }
 
 // Generar mensaje a partir del evento
@@ -119,22 +131,74 @@ function generateMessage(event: DBAgentEvent): string | null {
     return toolMessages[event.tool_name] || `Usando ${event.tool_name}`
   }
 
-  return null
+  // Mensajes por tipo de evento
+  const typeMessages: Record<string, string> = {
+    'SessionStart': 'Sesion iniciada',
+    'Stop': 'Sesion finalizada',
+  }
+  return typeMessages[event.event_type] || null
 }
 
-export function useAgentEvents(limit: number = 100) {
+// Obtener tipos de eventos unicos de la BD
+export function useEventTypes() {
+  const [eventTypes, setEventTypes] = useState<string[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function fetchEventTypes() {
+      try {
+        const { data, error } = await supabase
+          .from('agent_events')
+          .select('event_type')
+
+        if (error) {
+          console.error('Error fetching event types:', error)
+          return
+        }
+
+        // Obtener tipos unicos
+        const typeSet = new Set<string>()
+        data?.forEach(e => typeSet.add(e.event_type))
+        const uniqueTypes = Array.from(typeSet).sort()
+        setEventTypes(uniqueTypes)
+      } catch (err) {
+        console.error('Error in fetchEventTypes:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchEventTypes()
+  }, [])
+
+  return { eventTypes, loading }
+}
+
+export function useAgentEvents(
+  limit: number = 50,
+  filters: EventFilters = {}
+) {
   const [events, setEvents] = useState<TransformedEvent[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date())
+  const [hasMore, setHasMore] = useState(true)
+  const [totalCount, setTotalCount] = useState(0)
+  const offsetRef = useRef(0)
 
-  const fetchEvents = useCallback(async () => {
-    setLoading(true)
+  const fetchEvents = useCallback(async (reset: boolean = true) => {
+    if (reset) {
+      setLoading(true)
+      offsetRef.current = 0
+    } else {
+      setLoadingMore(true)
+    }
     setError(null)
 
     try {
-      // Obtener eventos con sesiones y proyectos
-      const { data: eventsData, error: eventsError } = await supabase
+      // Construir query base
+      let query = supabase
         .from('agent_events')
         .select(`
           *,
@@ -142,27 +206,70 @@ export function useAgentEvents(limit: number = 100) {
             *,
             project:projects (*)
           )
-        `)
+        `, { count: 'exact' })
         .order('timestamp', { ascending: false })
-        .limit(limit)
+
+      // Aplicar filtros
+      if (filters.searchTerm) {
+        query = query.ilike('file_path', `%${filters.searchTerm}%`)
+      }
+
+      if (filters.eventType) {
+        query = query.eq('event_type', filters.eventType)
+      }
+
+      if (filters.dateFrom) {
+        query = query.gte('timestamp', filters.dateFrom.toISOString())
+      }
+
+      if (filters.dateTo) {
+        // Ajustar dateTo al final del dia
+        const endOfDay = new Date(filters.dateTo)
+        endOfDay.setHours(23, 59, 59, 999)
+        query = query.lte('timestamp', endOfDay.toISOString())
+      }
+
+      // Paginacion
+      const offset = reset ? 0 : offsetRef.current
+      query = query.range(offset, offset + limit - 1)
+
+      const { data: eventsData, error: eventsError, count } = await query
 
       if (eventsError) {
         console.error('Error fetching events:', eventsError)
         setError(eventsError.message)
-        setEvents([])
+        if (reset) setEvents([])
         setLoading(false)
+        setLoadingMore(false)
         return
+      }
+
+      // Guardar total count
+      if (count !== null) {
+        setTotalCount(count)
       }
 
       if (!eventsData || eventsData.length === 0) {
-        setEvents([])
+        if (reset) setEvents([])
+        setHasMore(false)
         setLastUpdate(new Date())
         setLoading(false)
+        setLoadingMore(false)
         return
       }
 
+      // Filtrar por proyecto si es necesario (ya que el filtro de proyecto es via join)
+      let filteredEventsData = eventsData
+      if (filters.projectSlug) {
+        filteredEventsData = eventsData.filter((e) => {
+          const session = e.session as DBAgentSessionWithProject | null
+          return session?.project_slug === filters.projectSlug ||
+                 session?.project?.slug === filters.projectSlug
+        })
+      }
+
       // Transformar datos
-      const transformedEvents: TransformedEvent[] = eventsData
+      const transformedEvents: TransformedEvent[] = filteredEventsData
         .filter((e) => e.timestamp) // Solo eventos con timestamp valido
         .map((e) => {
           const session = e.session as DBAgentSessionWithProject | null
@@ -173,6 +280,7 @@ export function useAgentEvents(limit: number = 100) {
             session_id: e.session_id || '',
             project_id: project?.id || session?.project_slug || '',
             event_type: mapEventType(e.event_type),
+            original_event_type: e.event_type,
             tool_name: e.tool_name,
             file_path: e.file_path,
             message: generateMessage(e as DBAgentEvent),
@@ -195,19 +303,35 @@ export function useAgentEvents(limit: number = 100) {
           }
         })
 
-      setEvents(transformedEvents)
+      if (reset) {
+        setEvents(transformedEvents)
+        offsetRef.current = transformedEvents.length
+      } else {
+        setEvents(prev => [...prev, ...transformedEvents])
+        offsetRef.current += transformedEvents.length
+      }
+
+      setHasMore(eventsData.length === limit)
       setLastUpdate(new Date())
     } catch (err) {
       console.error('Error in fetchEvents:', err)
       setError(err instanceof Error ? err.message : 'Error desconocido')
-      setEvents([])
+      if (reset) setEvents([])
     }
 
     setLoading(false)
-  }, [limit])
+    setLoadingMore(false)
+  }, [limit, filters.projectSlug, filters.eventType, filters.dateFrom, filters.dateTo, filters.searchTerm])
+
+  // Cargar mas eventos (infinite scroll)
+  const loadMore = useCallback(() => {
+    if (!loadingMore && hasMore) {
+      fetchEvents(false)
+    }
+  }, [fetchEvents, loadingMore, hasMore])
 
   useEffect(() => {
-    fetchEvents()
+    fetchEvents(true)
 
     // Suscribirse a nuevos eventos
     const channel = supabase
@@ -221,7 +345,7 @@ export function useAgentEvents(limit: number = 100) {
         },
         () => {
           // Refetch para obtener el evento con su sesion y proyecto
-          fetchEvents()
+          fetchEvents(true)
         }
       )
       .subscribe()
@@ -234,8 +358,12 @@ export function useAgentEvents(limit: number = 100) {
   return {
     events,
     loading,
+    loadingMore,
     error,
     lastUpdate,
-    refetch: fetchEvents,
+    hasMore,
+    totalCount,
+    refetch: () => fetchEvents(true),
+    loadMore,
   }
 }

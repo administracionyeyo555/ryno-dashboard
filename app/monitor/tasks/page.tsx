@@ -10,7 +10,8 @@ import {
   Clock,
   Inbox,
   X,
-  Loader2
+  Loader2,
+  FolderKanban
 } from 'lucide-react'
 import { TaskCard } from '@/components/dashboard/TaskCard'
 import { supabase } from '@/lib/supabase'
@@ -41,12 +42,15 @@ function CreateTaskModal({
   const [priority, setPriority] = useState<TaskPriority>('medium')
   const [assignedTo, setAssignedTo] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim()) return
 
     setIsSubmitting(true)
+    setError(null)
+
     try {
       await onSubmit({
         title: title.trim(),
@@ -64,10 +68,25 @@ function CreateTaskModal({
       setPriority('medium')
       setAssignedTo('')
       onClose()
+    } catch (err) {
+      setError('Error al crear la tarea. Intenta de nuevo.')
+      console.error('Error creating task:', err)
     } finally {
       setIsSubmitting(false)
     }
   }
+
+  // Reset form when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setTitle('')
+      setDescription('')
+      setProjectSlug('')
+      setPriority('medium')
+      setAssignedTo('')
+      setError(null)
+    }
+  }, [isOpen])
 
   if (!isOpen) return null
 
@@ -87,7 +106,10 @@ function CreateTaskModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-4 border-b border-border">
-          <h2 className="text-lg font-semibold text-foreground">Nueva Tarea</h2>
+          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+            <Plus className="w-5 h-5 text-accent" />
+            Nueva Tarea
+          </h2>
           <button
             onClick={onClose}
             className="p-1 hover:bg-background rounded-lg transition-colors"
@@ -97,10 +119,16 @@ function CreateTaskModal({
         </div>
 
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
+          {error && (
+            <div className="p-3 bg-error/10 border border-error/20 rounded-lg text-error text-sm">
+              {error}
+            </div>
+          )}
+
           {/* Titulo */}
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">
-              Titulo *
+              Titulo <span className="text-error">*</span>
             </label>
             <input
               type="text"
@@ -121,7 +149,7 @@ function CreateTaskModal({
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Descripcion opcional"
+              placeholder="Descripcion opcional de la tarea"
               rows={3}
               className="input w-full resize-none"
             />
@@ -156,10 +184,10 @@ function CreateTaskModal({
               onChange={(e) => setPriority(e.target.value as TaskPriority)}
               className="input w-full"
             >
-              <option value="low">Baja</option>
-              <option value="medium">Media</option>
-              <option value="high">Alta</option>
-              <option value="critical">Critica</option>
+              <option value="low">Baja (Gris)</option>
+              <option value="medium">Media (Azul)</option>
+              <option value="high">Alta (Naranja)</option>
+              <option value="critical">Critica (Rojo)</option>
             </select>
           </div>
 
@@ -172,13 +200,13 @@ function CreateTaskModal({
               type="text"
               value={assignedTo}
               onChange={(e) => setAssignedTo(e.target.value)}
-              placeholder="claude-code, human, etc."
+              placeholder="claude-code, human, etc. (opcional)"
               className="input w-full"
             />
           </div>
 
           {/* Botones */}
-          <div className="flex justify-end gap-3 pt-4">
+          <div className="flex justify-end gap-3 pt-4 border-t border-border">
             <button
               type="button"
               onClick={onClose}
@@ -289,20 +317,31 @@ function EmptyTasksState({ onCreateClick }: { onCreateClick: () => void }) {
 
 // Componente de empty state para columna individual
 function EmptyColumnState({ status }: { status: TaskStatus }) {
-  const messages = {
-    pending: 'Arrastra tareas aqui',
-    in_progress: 'Sin tareas en progreso',
-    done: 'Sin tareas completadas',
+  const config = {
+    pending: {
+      message: 'Arrastra tareas aqui o crea una nueva',
+      icon: Inbox,
+    },
+    in_progress: {
+      message: 'Arrastra tareas para iniciar',
+      icon: Clock,
+    },
+    done: {
+      message: 'Las tareas completadas apareceran aqui',
+      icon: CheckSquare,
+    },
   }
+
+  const { message, icon: Icon } = config[status]
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="flex flex-col items-center justify-center py-8 text-muted border-2 border-dashed border-border rounded-lg"
+      className="flex flex-col items-center justify-center py-8 text-muted border-2 border-dashed border-border rounded-lg bg-background/20"
     >
-      <Inbox className="w-8 h-8 mb-2 opacity-50" />
-      <p className="text-sm">{messages[status]}</p>
+      <Icon className="w-8 h-8 mb-2 opacity-50" />
+      <p className="text-sm text-center px-4">{message}</p>
     </motion.div>
   )
 }
@@ -311,6 +350,7 @@ export default function TasksPage() {
   const { tasks, setTasks, updateTask, addTask } = useDashboardStore()
   const [searchTerm, setSearchTerm] = useState('')
   const [draggedTask, setDraggedTask] = useState<Task | null>(null)
+  const [dragOverColumn, setDragOverColumn] = useState<TaskStatus | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [projects, setProjects] = useState<ProjectDB[]>([])
@@ -320,13 +360,14 @@ export default function TasksPage() {
   const fetchTasks = useCallback(async () => {
     setIsLoading(true)
     try {
+      // Intentar con relacion primero
       const { data, error } = await supabase
         .from('tasks')
         .select('*, project:projects!tasks_project_slug_fkey(*)')
         .order('created_at', { ascending: false })
 
       if (error) {
-        console.error('Error fetching tasks:', error)
+        console.error('Error fetching tasks with relation:', error)
         // Fallback: try without relation
         const { data: tasksOnly, error: tasksError } = await supabase
           .from('tasks')
@@ -340,7 +381,7 @@ export default function TasksPage() {
         setTasks(data as Task[])
       }
     } catch (err) {
-      console.error('Unexpected error:', err)
+      console.error('Unexpected error fetching tasks:', err)
     } finally {
       setIsLoading(false)
     }
@@ -348,41 +389,54 @@ export default function TasksPage() {
 
   // Fetch projects from Supabase
   const fetchProjects = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('projects')
-      .select('*')
-      .eq('active', true)
-      .order('name')
+    try {
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('active', true)
+        .order('name')
 
-    if (!error && data) {
-      setProjects(data as ProjectDB[])
+      if (!error && data) {
+        setProjects(data as ProjectDB[])
+      }
+    } catch (err) {
+      console.error('Error fetching projects:', err)
     }
   }, [])
 
+  // Initial data fetch
   useEffect(() => {
     fetchTasks()
     fetchProjects()
   }, [fetchTasks, fetchProjects])
 
-  // Real-time subscription
+  // Real-time subscription to tasks table
   useEffect(() => {
     const subscription = supabase
-      .channel('tasks-changes')
+      .channel('tasks-realtime')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'tasks' },
-        () => {
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tasks'
+        },
+        (payload) => {
+          console.log('Realtime update:', payload)
+          // Refetch all tasks to get relations properly
           fetchTasks()
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        console.log('Realtime subscription status:', status)
+      })
 
     return () => {
       subscription.unsubscribe()
     }
   }, [fetchTasks])
 
-  // Filter tasks
+  // Filter tasks based on search and project
   const filteredTasks = tasks.filter((task) => {
     const matchesSearch =
       task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -396,29 +450,54 @@ export default function TasksPage() {
   const getTasksByStatus = (status: TaskStatus) =>
     filteredTasks.filter((task) => task.status === status)
 
+  // Drag and Drop handlers
   const handleDragStart = (e: React.DragEvent, task: Task) => {
     setDraggedTask(task)
     e.dataTransfer.effectAllowed = 'move'
+    // Add visual feedback
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '0.5'
+    }
   }
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragEnd = (e: React.DragEvent) => {
+    setDraggedTask(null)
+    setDragOverColumn(null)
+    // Reset visual feedback
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '1'
+    }
+  }
+
+  const handleDragOver = (e: React.DragEvent, columnStatus: TaskStatus) => {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
+    setDragOverColumn(columnStatus)
+  }
+
+  const handleDragLeave = () => {
+    setDragOverColumn(null)
   }
 
   const handleDrop = async (e: React.DragEvent, newStatus: TaskStatus) => {
     e.preventDefault()
+    setDragOverColumn(null)
+
     if (!draggedTask || draggedTask.status === newStatus) {
       setDraggedTask(null)
       return
     }
 
     const oldStatus = draggedTask.status
+    const taskId = draggedTask.id
 
-    // Update locally first for instant feedback
-    updateTask(draggedTask.id, { status: newStatus })
+    // Optimistic update - update local state immediately
+    updateTask(taskId, {
+      status: newStatus,
+      completed_at: newStatus === 'done' ? new Date().toISOString() : (oldStatus === 'done' ? null : undefined)
+    })
 
-    // Prepare update data
+    // Prepare update data for Supabase
     const updateData: Record<string, unknown> = { status: newStatus }
 
     // If moving to done, set completed_at
@@ -429,23 +508,27 @@ export default function TasksPage() {
       updateData.completed_at = null
     }
 
-    // Then update in database
+    // Update in Supabase
     const { error } = await supabase
       .from('tasks')
       .update(updateData)
-      .eq('id', draggedTask.id)
+      .eq('id', taskId)
 
     if (error) {
-      console.error('Error updating task:', error)
+      console.error('Error updating task status:', error)
       // Revert on error
-      updateTask(draggedTask.id, { status: oldStatus })
+      updateTask(taskId, {
+        status: oldStatus,
+        completed_at: oldStatus === 'done' ? draggedTask.completed_at : null
+      })
     }
 
     setDraggedTask(null)
   }
 
-  // Create new task
+  // Create new task handler
   const handleCreateTask = async (taskData: Omit<Task, 'id' | 'created_at' | 'completed_at'>) => {
+    // Try to insert with relation first
     const { data, error } = await supabase
       .from('tasks')
       .insert([taskData])
@@ -453,7 +536,7 @@ export default function TasksPage() {
       .single()
 
     if (error) {
-      console.error('Error creating task:', error)
+      console.error('Error creating task with relation:', error)
       // Try without relation
       const { data: taskOnly, error: taskError } = await supabase
         .from('tasks')
@@ -461,16 +544,19 @@ export default function TasksPage() {
         .select('*')
         .single()
 
-      if (!taskError && taskOnly) {
-        addTask(taskOnly as Task)
-      } else {
+      if (taskError) {
         throw taskError
+      }
+
+      if (taskOnly) {
+        addTask(taskOnly as Task)
       }
     } else if (data) {
       addTask(data as Task)
     }
   }
 
+  // Task counts per column
   const taskCounts = {
     pending: getTasksByStatus('pending').length,
     in_progress: getTasksByStatus('in_progress').length,
@@ -479,12 +565,13 @@ export default function TasksPage() {
 
   const totalTasks = taskCounts.pending + taskCounts.in_progress + taskCounts.done
 
+  // Loading state
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="flex items-center gap-3 text-muted">
-          <Loader2 className="w-6 h-6 animate-spin" />
-          <span>Cargando tareas...</span>
+        <div className="flex flex-col items-center gap-4 text-muted">
+          <Loader2 className="w-8 h-8 animate-spin text-accent" />
+          <span>Cargando tareas desde Supabase...</span>
         </div>
       </div>
     )
@@ -497,11 +584,11 @@ export default function TasksPage() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-              <CheckSquare className="w-8 h-8 text-accent" />
-              Tareas
+              <FolderKanban className="w-8 h-8 text-accent" />
+              Tablero Kanban
             </h1>
             <p className="text-muted mt-1">
-              Kanban board para gestion de tareas
+              Gestion de tareas con actualizaciones en tiempo real
             </p>
           </div>
           <button
@@ -515,7 +602,7 @@ export default function TasksPage() {
 
         {/* Filters */}
         {tasks.length > 0 && (
-          <div className="flex flex-wrap gap-4">
+          <div className="flex flex-wrap gap-4 items-center">
             {/* Search */}
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
@@ -529,76 +616,93 @@ export default function TasksPage() {
             </div>
 
             {/* Project filter */}
-            <select
-              value={selectedProject}
-              onChange={(e) => setSelectedProject(e.target.value)}
-              className="input min-w-[200px]"
-            >
-              <option value="all">Todos los proyectos</option>
-              {projects.map((project) => (
-                <option key={project.id} value={project.slug}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-muted">Filtrar por proyecto:</label>
+              <select
+                value={selectedProject}
+                onChange={(e) => setSelectedProject(e.target.value)}
+                className="input min-w-[200px]"
+              >
+                <option value="all">Todos los proyectos</option>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.slug}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Task counter */}
+            <div className="text-sm text-muted ml-auto">
+              {totalTasks} tarea{totalTasks !== 1 ? 's' : ''}
+              {selectedProject !== 'all' && ` en ${projects.find(p => p.slug === selectedProject)?.name || selectedProject}`}
+            </div>
           </div>
         )}
       </div>
 
-      {/* Empty State o Kanban Board */}
+      {/* Empty State or Kanban Board */}
       {totalTasks === 0 && tasks.length === 0 ? (
         <EmptyTasksState onCreateClick={() => setIsCreateModalOpen(true)} />
       ) : (
         <div className="flex gap-6 overflow-x-auto pb-4">
-          {columns.map((column) => (
-            <motion.div
-              key={column.id}
-              className="kanban-column"
-              onDragOver={handleDragOver}
-              onDrop={(e) => handleDrop(e, column.id)}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: columns.indexOf(column) * 0.1 }}
-            >
-              {/* Column Header */}
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <span
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: column.color }}
-                  />
-                  <h3 className="font-semibold text-foreground">{column.title}</h3>
-                  <motion.span
-                    key={taskCounts[column.id]}
-                    initial={{ scale: 0.8 }}
-                    animate={{ scale: 1 }}
-                    className="px-2 py-0.5 text-xs font-medium bg-background rounded-full text-muted"
-                  >
-                    {taskCounts[column.id]}
-                  </motion.span>
-                </div>
-              </div>
+          {columns.map((column, colIndex) => {
+            const columnTasks = getTasksByStatus(column.id)
+            const isDropTarget = dragOverColumn === column.id && draggedTask?.status !== column.id
 
-              {/* Tasks */}
-              <div className="space-y-2 min-h-[200px]">
-                <AnimatePresence mode="popLayout">
-                  {getTasksByStatus(column.id).map((task, index) => (
-                    <TaskCard
-                      key={task.id}
-                      task={task}
-                      index={index}
-                      onDragStart={handleDragStart}
-                      onDragEnd={() => setDraggedTask(null)}
+            return (
+              <motion.div
+                key={column.id}
+                className={`kanban-column transition-all duration-200 ${
+                  isDropTarget ? 'ring-2 ring-accent ring-offset-2 ring-offset-background' : ''
+                }`}
+                onDragOver={(e) => handleDragOver(e, column.id)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, column.id)}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: colIndex * 0.1 }}
+              >
+                {/* Column Header */}
+                <div className="flex items-center justify-between mb-4 sticky top-0 bg-card/50 backdrop-blur-sm py-2 -mt-2 -mx-4 px-4">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: column.color }}
                     />
-                  ))}
-                </AnimatePresence>
+                    <h3 className="font-semibold text-foreground">{column.title}</h3>
+                    <motion.span
+                      key={taskCounts[column.id]}
+                      initial={{ scale: 0.8 }}
+                      animate={{ scale: 1 }}
+                      className="px-2 py-0.5 text-xs font-medium bg-background rounded-full text-muted"
+                    >
+                      {taskCounts[column.id]}
+                    </motion.span>
+                  </div>
+                </div>
 
-                {getTasksByStatus(column.id).length === 0 && (
-                  <EmptyColumnState status={column.id} />
-                )}
-              </div>
-            </motion.div>
-          ))}
+                {/* Tasks */}
+                <div className="space-y-2 min-h-[200px]">
+                  <AnimatePresence mode="popLayout">
+                    {columnTasks.map((task, index) => (
+                      <TaskCard
+                        key={task.id}
+                        task={task}
+                        index={index}
+                        onDragStart={handleDragStart}
+                        onDragEnd={handleDragEnd}
+                      />
+                    ))}
+                  </AnimatePresence>
+
+                  {columnTasks.length === 0 && (
+                    <EmptyColumnState status={column.id} />
+                  )}
+                </div>
+              </motion.div>
+            )
+          })}
         </div>
       )}
 

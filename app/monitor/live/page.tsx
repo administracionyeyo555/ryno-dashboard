@@ -4,100 +4,10 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Activity, RefreshCw, Search, Filter, Clock, Loader2, ToggleLeft, ToggleRight } from 'lucide-react'
 import { AgentCard } from '@/components/dashboard/AgentCard'
+import { SessionDetailModal } from '@/components/dashboard/SessionDetailModal'
 import { useRealtimeAgents } from '@/hooks/useRealtimeAgents'
 import { useProjects } from '@/hooks/useProjects'
 import type { AgentSession } from '@/types/database'
-
-// Demo data mejorado con animaciones de typing
-const createDemoSessions = (): AgentSession[] => [
-  {
-    id: 'demo-1',
-    project_id: 'caracas-golf-market',
-    agent_name: 'Claude Golf Agent',
-    status: 'running',
-    current_tool: 'Edit',
-    current_file: '/src/components/ScoreCard.tsx',
-    started_at: new Date(Date.now() - 1800000).toISOString(),
-    ended_at: null,
-    duration_seconds: 1800,
-    events_count: 45,
-    project: {
-      id: 'caracas-golf-market',
-      name: 'Caracas Golf Market',
-      slug: 'caracas-golf-market',
-      description: 'Marketplace de golf con tracking de estadisticas',
-      color: '#2D5016',
-      status: 'active',
-      health_score: 85,
-      total_sessions: 24,
-      total_events: 1250,
-      total_tasks: 12,
-      created_at: '',
-      updated_at: '',
-    },
-  },
-  {
-    id: 'demo-2',
-    project_id: 'asotoy',
-    agent_name: 'Claude ASOTOY Agent',
-    status: 'running',
-    current_tool: 'Write',
-    current_file: '/app/api/checkout/route.ts',
-    started_at: new Date(Date.now() - 900000).toISOString(),
-    ended_at: null,
-    duration_seconds: 900,
-    events_count: 23,
-    project: {
-      id: 'asotoy',
-      name: 'ASOTOY',
-      slug: 'asotoy',
-      description: 'E-commerce platform',
-      color: '#CC0000',
-      status: 'active',
-      health_score: 72,
-      total_sessions: 18,
-      total_events: 890,
-      total_tasks: 8,
-      created_at: '',
-      updated_at: '',
-    },
-  },
-  {
-    id: 'demo-3',
-    project_id: 'dabi',
-    agent_name: 'Claude Dabi Agent',
-    status: 'running',
-    current_tool: 'Bash',
-    current_file: null,
-    started_at: new Date(Date.now() - 3600000).toISOString(),
-    ended_at: null,
-    duration_seconds: 3600,
-    events_count: 67,
-    project: {
-      id: 'dabi',
-      name: 'Dabi App',
-      slug: 'dabi-app',
-      description: 'Mobile application',
-      color: '#7C3AED',
-      status: 'active',
-      health_score: 91,
-      total_sessions: 32,
-      total_events: 2100,
-      total_tasks: 15,
-      created_at: '',
-      updated_at: '',
-    },
-  },
-]
-
-// Demo events recientes
-const demoRecentEvents = [
-  { tool: 'Edit', file: 'ScoreCard.tsx', project: 'Golf', time: '2s' },
-  { tool: 'Read', file: 'api/products.ts', project: 'ASOTOY', time: '5s' },
-  { tool: 'Bash', file: 'npm install', project: 'Dabi', time: '8s' },
-  { tool: 'Write', file: 'checkout/route.ts', project: 'ASOTOY', time: '12s' },
-  { tool: 'Grep', file: 'src/**/*.tsx', project: 'Golf', time: '15s' },
-]
 
 // Componente de estado vacio mejorado
 function EmptyState() {
@@ -214,43 +124,6 @@ function EmptyState() {
   )
 }
 
-// Componente de eventos recientes demo
-function DemoRecentEvents() {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.3 }}
-      className="card mt-6"
-    >
-      <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-        <Activity className="w-4 h-4 text-accent" />
-        Eventos Recientes (Demo)
-      </h3>
-      <div className="space-y-3">
-        {demoRecentEvents.map((event, index) => (
-          <motion.div
-            key={index}
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.1 * index }}
-            className="flex items-center justify-between py-2 border-b border-border last:border-0"
-          >
-            <div className="flex items-center gap-3">
-              <span className="tool-tag">{event.tool}</span>
-              <span className="text-sm text-muted font-mono">{event.file}</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-muted">{event.project}</span>
-              <span className="text-xs text-accent">{event.time}</span>
-            </div>
-          </motion.div>
-        ))}
-      </div>
-    </motion.div>
-  )
-}
-
 export default function LivePage() {
   const { activeSessions, refetch } = useRealtimeAgents()
   const { projects } = useProjects()
@@ -258,7 +131,10 @@ export default function LivePage() {
   const [selectedProject, setSelectedProject] = useState<string | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [useDemoData, setUseDemoData] = useState(false)
-  const [demoSessions, setDemoSessions] = useState<AgentSession[]>([])
+
+  // Modal state
+  const [selectedSession, setSelectedSession] = useState<AgentSession | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
   // Cargar preferencia de localStorage
   useEffect(() => {
@@ -275,27 +151,8 @@ export default function LivePage() {
     localStorage.setItem('ryno-demo-mode', String(newValue))
   }
 
-  // Crear datos demo con variaciones
-  useEffect(() => {
-    if (useDemoData) {
-      setDemoSessions(createDemoSessions())
-
-      // Simular cambios periodicos en los datos demo
-      const interval = setInterval(() => {
-        setDemoSessions(prev => prev.map(session => ({
-          ...session,
-          duration_seconds: session.duration_seconds + 1,
-          events_count: session.events_count + (Math.random() > 0.7 ? 1 : 0),
-          current_tool: ['Edit', 'Read', 'Write', 'Bash', 'Grep'][Math.floor(Math.random() * 5)],
-        })))
-      }, 3000)
-
-      return () => clearInterval(interval)
-    }
-  }, [useDemoData])
-
-  // Determinar que sesiones mostrar
-  const sessions = useDemoData ? demoSessions : activeSessions
+  // Determinar que sesiones mostrar (solo datos reales, no demo)
+  const sessions = useDemoData ? [] : activeSessions
 
   const filteredSessions = sessions.filter((session) => {
     const matchesSearch =
@@ -315,6 +172,17 @@ export default function LivePage() {
     setTimeout(() => setIsRefreshing(false), 500)
   }
 
+  const handleCardClick = (session: AgentSession) => {
+    setSelectedSession(session)
+    setIsModalOpen(true)
+  }
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false)
+    // Delay clearing session to allow exit animation
+    setTimeout(() => setSelectedSession(null), 300)
+  }
+
   // Update duration every second for running sessions
   const [, setTick] = useState(0)
   useEffect(() => {
@@ -326,7 +194,7 @@ export default function LivePage() {
   const idleCount = sessions.filter((s) => s.status === 'idle').length
 
   // Determinar si mostrar estado vacio real
-  const showRealEmptyState = !useDemoData && activeSessions.length === 0
+  const showRealEmptyState = activeSessions.length === 0
 
   return (
     <div className="min-h-screen p-6">
@@ -343,7 +211,7 @@ export default function LivePage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            {/* Toggle para demo data - VISIBLE EN ESQUINA */}
+            {/* Toggle para demo data - Solo para mensaje informativo */}
             <motion.button
               onClick={toggleDemoMode}
               whileHover={{ scale: 1.02 }}
@@ -508,14 +376,12 @@ export default function LivePage() {
                   key={session.id}
                   session={session}
                   index={index}
-                  isDemo={useDemoData}
+                  isDemo={false}
+                  onClick={() => handleCardClick(session)}
                 />
               ))}
             </AnimatePresence>
           </div>
-
-          {/* Eventos recientes demo */}
-          {useDemoData && <DemoRecentEvents />}
 
           {filteredSessions.length === 0 && sessions.length > 0 && (
             <motion.div
@@ -529,6 +395,15 @@ export default function LivePage() {
             </motion.div>
           )}
         </>
+      )}
+
+      {/* Session Detail Modal */}
+      {selectedSession && (
+        <SessionDetailModal
+          session={selectedSession}
+          isOpen={isModalOpen}
+          onClose={handleCloseModal}
+        />
       )}
     </div>
   )

@@ -1,14 +1,17 @@
 'use client'
 
+import { useEffect, useState, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import { FileCode, Clock, Wrench, Folder, AlertCircle } from 'lucide-react'
-import { cn, formatTime } from '@/lib/utils'
-import type { AgentSession } from '@/types/database'
+import { FileCode, Clock, Wrench, Folder, AlertCircle, Activity, ChevronRight } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+import { cn, formatTime, formatRelativeTimeShort } from '@/lib/utils'
+import type { AgentSession, AgentEvent } from '@/types/database'
 
 interface AgentCardProps {
   session: AgentSession
   index?: number
   isDemo?: boolean
+  onClick?: () => void
 }
 
 // Componente de animacion "typing"
@@ -34,7 +37,35 @@ function TypingIndicator() {
   )
 }
 
-export function AgentCard({ session, index = 0, isDemo = false }: AgentCardProps) {
+// Mini timeline event item
+function MiniTimelineEvent({ event, index }: { event: AgentEvent; index: number }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -10 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: index * 0.1 }}
+      className="flex items-center gap-2 text-xs"
+    >
+      <div className="w-1.5 h-1.5 rounded-full bg-accent/60" />
+      <span className="tool-tag !text-[10px] !px-1.5 !py-0.5">
+        {event.tool_name || event.event_type}
+      </span>
+      {event.file_path && (
+        <span className="text-muted font-mono truncate max-w-[100px]">
+          {event.file_path.split('/').pop()}
+        </span>
+      )}
+      <span className="text-muted/70 ml-auto">
+        {formatRelativeTimeShort(event.created_at)}
+      </span>
+    </motion.div>
+  )
+}
+
+export function AgentCard({ session, index = 0, isDemo = false, onClick }: AgentCardProps) {
+  const [recentEvents, setRecentEvents] = useState<AgentEvent[]>([])
+  const [runningTime, setRunningTime] = useState(0)
+
   const statusColors = {
     running: 'bg-success',
     active: 'bg-success',
@@ -55,14 +86,64 @@ export function AgentCard({ session, index = 0, isDemo = false }: AgentCardProps
 
   const isActive = session.status === 'running' || session.status === 'active'
 
+  // Fetch recent events for this session
+  const fetchRecentEvents = useCallback(async () => {
+    if (isDemo) return // Skip for demo data
+
+    const { data, error } = await supabase
+      .from('agent_events')
+      .select('*')
+      .eq('session_id', session.id)
+      .order('created_at', { ascending: false })
+      .limit(3)
+
+    if (error) {
+      console.error('Error fetching recent events:', error)
+      return
+    }
+
+    setRecentEvents(data || [])
+  }, [session.id, isDemo])
+
+  // Calculate running time from started_at
+  const calculateRunningTime = useCallback(() => {
+    if (!session.started_at) return 0
+    const start = new Date(session.started_at).getTime()
+    const end = session.ended_at ? new Date(session.ended_at).getTime() : Date.now()
+    return Math.floor((end - start) / 1000)
+  }, [session.started_at, session.ended_at])
+
+  // Fetch events on mount
+  useEffect(() => {
+    fetchRecentEvents()
+  }, [fetchRecentEvents])
+
+  // Update running time every second
+  useEffect(() => {
+    setRunningTime(calculateRunningTime())
+
+    if (isActive) {
+      const interval = setInterval(() => {
+        setRunningTime(calculateRunningTime())
+      }, 1000)
+      return () => clearInterval(interval)
+    }
+  }, [calculateRunningTime, isActive])
+
+  // Progress calculation based on events_count
+  // Assuming an average session has ~100 events as "complete"
+  const maxExpectedEvents = 100
+  const progressPercentage = Math.min((session.events_count || 0) / maxExpectedEvents * 100, 100)
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.3, delay: index * 0.1 }}
+      onClick={onClick}
       className={cn(
-        'card group relative overflow-hidden',
+        'card group relative overflow-hidden cursor-pointer hover:border-accent/50 transition-all',
         isActive && 'ring-1 ring-accent/30'
       )}
     >
@@ -163,7 +244,7 @@ export function AgentCard({ session, index = 0, isDemo = false }: AgentCardProps
             transition={{ delay: 0.2 }}
           >
             <FileCode className="w-4 h-4 text-muted" />
-            <span className="text-sm text-muted font-mono truncate max-w-[200px]">
+            <span className="text-sm text-muted font-mono truncate max-w-[200px]" title={session.current_file}>
               {session.current_file.split('/').pop()}
             </span>
           </motion.div>
@@ -181,28 +262,67 @@ export function AgentCard({ session, index = 0, isDemo = false }: AgentCardProps
         )}
       </div>
 
+      {/* Mini Timeline - Last 3 events */}
+      {!isDemo && recentEvents.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3 }}
+          className="mt-4 pt-3 border-t border-border/50 relative z-10"
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <Activity className="w-3 h-3 text-muted" />
+            <span className="text-xs text-muted font-medium">Actividad reciente</span>
+          </div>
+          <div className="space-y-1.5">
+            {recentEvents.map((event, idx) => (
+              <MiniTimelineEvent key={event.id} event={event} index={idx} />
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Progress Bar */}
+      <div className="mt-4 relative z-10">
+        <div className="flex items-center justify-between text-xs text-muted mb-1">
+          <span>Progreso</span>
+          <span>{Math.round(progressPercentage)}%</span>
+        </div>
+        <div className="h-1.5 bg-border rounded-full overflow-hidden">
+          <motion.div
+            className="h-full bg-gradient-to-r from-accent to-accent/70 rounded-full"
+            initial={{ width: 0 }}
+            animate={{ width: `${progressPercentage}%` }}
+            transition={{ duration: 0.5, ease: 'easeOut' }}
+          />
+        </div>
+      </div>
+
       {/* Footer */}
       <div className="flex items-center justify-between mt-4 pt-4 border-t border-border relative z-10">
         <div className="flex items-center gap-2 text-muted">
           <Clock className="w-4 h-4" />
           <motion.span
-            key={session.duration_seconds}
+            key={runningTime}
             className="text-sm"
             initial={{ opacity: 0.5 }}
             animate={{ opacity: 1 }}
           >
-            {formatTime(session.duration_seconds)}
+            {formatTime(runningTime)}
           </motion.span>
         </div>
-        <motion.div
-          className="text-sm text-muted"
-          key={session.events_count ?? 0}
-          initial={{ scale: 1 }}
-          animate={{ scale: [1, 1.1, 1] }}
-          transition={{ duration: 0.3 }}
-        >
-          {session.events_count ?? 0} events
-        </motion.div>
+        <div className="flex items-center gap-2">
+          <motion.div
+            className="text-sm text-muted"
+            key={session.events_count ?? 0}
+            initial={{ scale: 1 }}
+            animate={{ scale: [1, 1.1, 1] }}
+            transition={{ duration: 0.3 }}
+          >
+            {session.events_count ?? 0} events
+          </motion.div>
+          <ChevronRight className="w-4 h-4 text-muted group-hover:text-accent transition-colors" />
+        </div>
       </div>
 
       {/* Progress indicator animado */}
