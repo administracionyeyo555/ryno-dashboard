@@ -196,12 +196,12 @@ export function AgentCard({ session, index = 0, isDemo = false }: AgentCardProps
         </div>
         <motion.div
           className="text-sm text-muted"
-          key={session.events_count}
+          key={session.events_count ?? 0}
           initial={{ scale: 1 }}
           animate={{ scale: [1, 1.1, 1] }}
           transition={{ duration: 0.3 }}
         >
-          {session.events_count} events
+          {session.events_count ?? 0} events
         </motion.div>
       </div>
 

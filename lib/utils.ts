@@ -6,9 +6,14 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatTime(seconds: number): string {
+  // Handle invalid input
+  if (seconds == null || isNaN(seconds) || !isFinite(seconds) || seconds < 0) {
+    return '-'
+  }
+
   const hours = Math.floor(seconds / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
-  const secs = seconds % 60
+  const secs = Math.floor(seconds % 60)
 
   if (hours > 0) {
     return `${hours}h ${minutes}m`
@@ -19,10 +24,20 @@ export function formatTime(seconds: number): string {
   return `${secs}s`
 }
 
-export function formatRelativeTime(date: Date | string): string {
+export function formatRelativeTime(date: Date | string | null | undefined): string {
+  // Handle invalid input
+  if (date == null) return '-'
+
   const now = new Date()
   const targetDate = typeof date === 'string' ? new Date(date) : date
+
+  // Check if date is valid
+  if (isNaN(targetDate.getTime())) return '-'
+
   const diffInSeconds = Math.floor((now.getTime() - targetDate.getTime()) / 1000)
+
+  // Handle invalid diff (e.g., date in far future)
+  if (isNaN(diffInSeconds) || !isFinite(diffInSeconds)) return '-'
 
   // Tiempos en espanol
   if (diffInSeconds < 5) return 'ahora mismo'
@@ -54,10 +69,20 @@ export function formatRelativeTime(date: Date | string): string {
 }
 
 // Formato de tiempo relativo compacto (para uso en espacios reducidos)
-export function formatRelativeTimeShort(date: Date | string): string {
+export function formatRelativeTimeShort(date: Date | string | null | undefined): string {
+  // Handle invalid input
+  if (date == null) return '-'
+
   const now = new Date()
   const targetDate = typeof date === 'string' ? new Date(date) : date
+
+  // Check if date is valid
+  if (isNaN(targetDate.getTime())) return '-'
+
   const diffInSeconds = Math.floor((now.getTime() - targetDate.getTime()) / 1000)
+
+  // Handle invalid diff
+  if (isNaN(diffInSeconds) || !isFinite(diffInSeconds)) return '-'
 
   if (diffInSeconds < 60) return 'ahora'
   if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m`
@@ -67,8 +92,15 @@ export function formatRelativeTimeShort(date: Date | string): string {
 }
 
 // Formato de fecha y hora completo
-export function formatDateTime(date: Date | string): string {
+export function formatDateTime(date: Date | string | null | undefined): string {
+  // Handle invalid input
+  if (date == null) return '-'
+
   const targetDate = typeof date === 'string' ? new Date(date) : date
+
+  // Check if date is valid
+  if (isNaN(targetDate.getTime())) return '-'
+
   return targetDate.toLocaleDateString('es-ES', {
     day: '2-digit',
     month: 'short',

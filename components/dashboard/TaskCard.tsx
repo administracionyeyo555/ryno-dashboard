@@ -6,9 +6,10 @@ import {
   Calendar,
   User,
   MoreHorizontal,
+  CheckCircle2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { Task } from '@/types/database'
+import type { Task, TaskPriority } from '@/types/database'
 
 interface TaskCardProps {
   task: Task
@@ -17,18 +18,25 @@ interface TaskCardProps {
   onDragEnd?: () => void
 }
 
-const priorityColors = {
+const priorityColors: Record<TaskPriority, string> = {
   low: 'bg-info/10 text-info border-info/20',
   medium: 'bg-warning/10 text-warning border-warning/20',
   high: 'bg-accent/10 text-accent border-accent/20',
   critical: 'bg-error/10 text-error border-error/20',
 }
 
-const priorityIcons = {
+const priorityIcons: Record<TaskPriority, string> = {
   low: 'bg-info',
   medium: 'bg-warning',
   high: 'bg-accent',
   critical: 'bg-error',
+}
+
+const priorityLabels: Record<TaskPriority, string> = {
+  low: 'Baja',
+  medium: 'Media',
+  high: 'Alta',
+  critical: 'Critica',
 }
 
 export function TaskCard({
@@ -45,8 +53,6 @@ export function TaskCard({
       day: 'numeric',
     })
   }
-
-  const isOverdue = task.due_date && new Date(task.due_date) < new Date()
 
   return (
     <motion.div
@@ -82,7 +88,7 @@ export function TaskCard({
                     priorityIcons[task.priority]
                   )}
                 />
-                {task.priority}
+                {priorityLabels[task.priority]}
               </span>
             </div>
             <button className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-background rounded">
@@ -115,33 +121,33 @@ export function TaskCard({
 
           {/* Footer */}
           <div className="flex items-center justify-between pt-2 border-t border-border">
-            {/* Assignee */}
-            {task.assignee ? (
+            {/* Assigned to */}
+            {task.assigned_to ? (
               <div className="flex items-center gap-1.5">
                 <div className="w-5 h-5 rounded-full bg-accent/10 flex items-center justify-center">
                   <User className="w-3 h-3 text-accent" />
                 </div>
-                <span className="text-xs text-muted">{task.assignee}</span>
+                <span className="text-xs text-muted">{task.assigned_to}</span>
               </div>
             ) : (
               <div className="flex items-center gap-1.5 text-muted">
                 <User className="w-4 h-4 opacity-50" />
-                <span className="text-xs">Unassigned</span>
+                <span className="text-xs">Sin asignar</span>
               </div>
             )}
 
-            {/* Due date */}
-            {task.due_date && (
-              <div
-                className={cn(
-                  'flex items-center gap-1.5 text-xs',
-                  isOverdue ? 'text-error' : 'text-muted'
-                )}
-              >
-                <Calendar className="w-3 h-3" />
-                <span>{formatDate(task.due_date)}</span>
+            {/* Completed at or created by */}
+            {task.completed_at ? (
+              <div className="flex items-center gap-1.5 text-xs text-success">
+                <CheckCircle2 className="w-3 h-3" />
+                <span>{formatDate(task.completed_at)}</span>
               </div>
-            )}
+            ) : task.created_at ? (
+              <div className="flex items-center gap-1.5 text-xs text-muted">
+                <Calendar className="w-3 h-3" />
+                <span>{formatDate(task.created_at)}</span>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

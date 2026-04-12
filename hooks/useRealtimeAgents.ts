@@ -27,7 +27,25 @@ export function useRealtimeAgents() {
       return
     }
 
-    setActiveSessions(data as AgentSession[])
+    // If events_count is missing/null, fetch actual count from agent_events
+    const sessionsWithCounts = await Promise.all(
+      (data || []).map(async (session) => {
+        if (session.events_count == null || session.events_count === 0) {
+          const { count } = await supabase
+            .from('agent_events')
+            .select('*', { count: 'exact', head: true })
+            .eq('session_id', session.id)
+
+          return {
+            ...session,
+            events_count: count || 0
+          }
+        }
+        return session
+      })
+    )
+
+    setActiveSessions(sessionsWithCounts as AgentSession[])
   }, [setActiveSessions])
 
   useEffect(() => {

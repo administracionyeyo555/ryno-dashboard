@@ -184,7 +184,7 @@ function EmptyState() {
         transition={{ delay: 0.2 }}
         className="text-lg font-semibold text-foreground mb-2"
       >
-        Sin actividad reciente
+        Sin actividad aun
       </motion.h3>
 
       <motion.p

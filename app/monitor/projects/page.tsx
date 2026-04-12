@@ -22,12 +22,11 @@ interface DBProjectStatus {
   tasks_pending: number
 }
 
-// Métricas de desarrollo por proyecto (placeholders)
-const projectMetrics: Record<string, { commits: number; files: number; lines: string }> = {
-  'asotoy': { commits: 24, files: 67, lines: '4.2k' },
-  'caracas-golf-market': { commits: 18, files: 45, lines: '3.1k' },
-  'dabi': { commits: 31, files: 89, lines: '5.8k' },
-  'flowmando-platform': { commits: 12, files: 34, lines: '2.4k' },
+// Tipo para metricas de git reales
+interface GitMetrics {
+  commits: number | null
+  files: number | null
+  lines: string | null
 }
 
 // Los 4 proyectos principales como fallback
@@ -41,6 +40,7 @@ const coreProjects: DBProject[] = [
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<DBProject[]>(coreProjects)
   const [statusMap, setStatusMap] = useState<Record<string, DBProjectStatus>>({})
+  const [gitMetrics, setGitMetrics] = useState<Record<string, GitMetrics>>({})
   const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(true)
 
@@ -69,6 +69,17 @@ export default function ProjectsPage() {
           })
           setStatusMap(map)
         }
+
+        // Fetch git metrics from API
+        try {
+          const res = await fetch('/api/git-metrics')
+          if (res.ok) {
+            const metricsData = await res.json()
+            setGitMetrics(metricsData)
+          }
+        } catch (gitErr) {
+          console.error('Error fetching git metrics:', gitErr)
+        }
       } catch (err) {
         console.error('Error fetching data:', err)
       } finally {
@@ -85,8 +96,9 @@ export default function ProjectsPage() {
       project.slug.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  const totalCommits = Object.values(projectMetrics).reduce((acc, m) => acc + m.commits, 0)
-  const totalFiles = Object.values(projectMetrics).reduce((acc, m) => acc + m.files, 0)
+  // Calcular totales de metricas reales de git
+  const totalCommits = Object.values(gitMetrics).reduce((acc, m) => acc + (m.commits || 0), 0)
+  const totalFiles = Object.values(gitMetrics).reduce((acc, m) => acc + (m.files || 0), 0)
 
   if (loading) {
     return (
@@ -132,8 +144,8 @@ export default function ProjectsPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
           >
-            <p className="text-sm text-muted mb-1">Commits (semana)</p>
-            <p className="text-3xl font-bold text-accent">{totalCommits}</p>
+            <p className="text-sm text-muted mb-1">Commits (total)</p>
+            <p className="text-3xl font-bold text-accent">{totalCommits > 0 ? totalCommits : '-'}</p>
           </motion.div>
           <motion.div
             className="bg-card border border-border rounded-xl p-4"
@@ -141,8 +153,8 @@ export default function ProjectsPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
           >
-            <p className="text-sm text-muted mb-1">Archivos Mod.</p>
-            <p className="text-3xl font-bold text-blue-400">{totalFiles}</p>
+            <p className="text-sm text-muted mb-1">Archivos (total)</p>
+            <p className="text-3xl font-bold text-blue-400">{totalFiles > 0 ? totalFiles : '-'}</p>
           </motion.div>
           <motion.div
             className="bg-card border border-border rounded-xl p-4"
@@ -172,7 +184,7 @@ export default function ProjectsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {filteredProjects.map((project, index) => {
           const status = statusMap[project.slug]
-          const metrics = projectMetrics[project.slug] || { commits: 0, files: 0, lines: '0' }
+          const metrics = gitMetrics[project.slug] || { commits: null, files: null, lines: null }
           const healthScore = status?.health === 'green' ? 100 : status?.health === 'yellow' ? 50 : 0
 
           return (
@@ -218,22 +230,22 @@ export default function ProjectsPage() {
                 <div className="flex items-center gap-2">
                   <GitCommit className="w-4 h-4 text-accent" />
                   <div>
-                    <p className="text-lg font-bold text-foreground">{metrics.commits}</p>
+                    <p className="text-lg font-bold text-foreground">{metrics.commits !== null ? metrics.commits : '-'}</p>
                     <p className="text-[10px] text-muted">commits</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <FileCode className="w-4 h-4 text-blue-400" />
                   <div>
-                    <p className="text-lg font-bold text-foreground">{metrics.files}</p>
+                    <p className="text-lg font-bold text-foreground">{metrics.files !== null ? metrics.files : '-'}</p>
                     <p className="text-[10px] text-muted">archivos</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Code2 className="w-4 h-4 text-green-400" />
                   <div>
-                    <p className="text-lg font-bold text-foreground">{metrics.lines}</p>
-                    <p className="text-[10px] text-muted">líneas</p>
+                    <p className="text-lg font-bold text-foreground">{metrics.lines !== null ? metrics.lines : '-'}</p>
+                    <p className="text-[10px] text-muted">lineas</p>
                   </div>
                 </div>
               </div>

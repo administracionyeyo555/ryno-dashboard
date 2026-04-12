@@ -127,7 +127,7 @@ CREATE TABLE tasks (
     title TEXT NOT NULL,
     description TEXT,
     status TEXT CHECK (status IN ('pending', 'in_progress', 'done')) DEFAULT 'pending',
-    priority TEXT CHECK (priority IN ('low', 'medium', 'high')) DEFAULT 'medium',
+    priority TEXT CHECK (priority IN ('low', 'medium', 'high', 'critical')) DEFAULT 'medium',
     assigned_to TEXT,
     created_by TEXT NOT NULL DEFAULT 'human',
     created_at TIMESTAMPTZ DEFAULT now(),

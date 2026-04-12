@@ -2,180 +2,217 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { CheckSquare, Plus, Search, ClipboardList, Clock, Inbox } from 'lucide-react'
+import {
+  CheckSquare,
+  Plus,
+  Search,
+  ClipboardList,
+  Clock,
+  Inbox,
+  X,
+  Loader2
+} from 'lucide-react'
 import { TaskCard } from '@/components/dashboard/TaskCard'
 import { supabase } from '@/lib/supabase'
 import { useDashboardStore } from '@/stores/dashboard-store'
-import type { Task, TaskStatus } from '@/types/database'
-
-// Demo tasks
-const demoTasks: Task[] = [
-  {
-    id: '1',
-    project_id: 'golf',
-    title: 'Implementar sistema de handicap',
-    description: 'Calcular y mostrar el handicap del jugador basado en sus ultimas rondas',
-    status: 'todo',
-    priority: 'high',
-    assignee: 'Claude',
-    due_date: new Date(Date.now() + 86400000 * 3).toISOString(),
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    project: {
-      id: 'golf',
-      name: 'Golf Shots',
-      slug: 'golf-shots',
-      description: null,
-      color: '#22c55e',
-      status: 'active',
-      health_score: 85,
-      total_sessions: 24,
-      total_events: 1250,
-      total_tasks: 12,
-      created_at: '',
-      updated_at: '',
-    },
-  },
-  {
-    id: '2',
-    project_id: 'asotoy',
-    title: 'Integracion con Stripe',
-    description: 'Configurar pagos con tarjeta de credito y debito',
-    status: 'in_progress',
-    priority: 'critical',
-    assignee: 'Claude',
-    due_date: new Date(Date.now() + 86400000).toISOString(),
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    project: {
-      id: 'asotoy',
-      name: 'ASOTOY',
-      slug: 'asotoy',
-      description: null,
-      color: '#3b82f6',
-      status: 'active',
-      health_score: 72,
-      total_sessions: 18,
-      total_events: 890,
-      total_tasks: 8,
-      created_at: '',
-      updated_at: '',
-    },
-  },
-  {
-    id: '3',
-    project_id: 'dabi',
-    title: 'Disenar pantalla de analytics',
-    description: 'Crear visualizaciones de gastos mensuales',
-    status: 'todo',
-    priority: 'medium',
-    assignee: null,
-    due_date: new Date(Date.now() + 86400000 * 7).toISOString(),
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    project: {
-      id: 'dabi',
-      name: 'Dabi App',
-      slug: 'dabi-app',
-      description: null,
-      color: '#eab308',
-      status: 'active',
-      health_score: 91,
-      total_sessions: 32,
-      total_events: 2100,
-      total_tasks: 15,
-      created_at: '',
-      updated_at: '',
-    },
-  },
-  {
-    id: '4',
-    project_id: 'platform',
-    title: 'Refactorizar sistema de auth',
-    description: 'Migrar a NextAuth v5 con soporte para providers multiples',
-    status: 'in_progress',
-    priority: 'high',
-    assignee: 'Claude',
-    due_date: new Date(Date.now() + 86400000 * 2).toISOString(),
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    project: {
-      id: 'platform',
-      name: 'Platform Core',
-      slug: 'platform-core',
-      description: null,
-      color: '#FF6B35',
-      status: 'active',
-      health_score: 88,
-      total_sessions: 45,
-      total_events: 3200,
-      total_tasks: 22,
-      created_at: '',
-      updated_at: '',
-    },
-  },
-  {
-    id: '5',
-    project_id: 'golf',
-    title: 'Agregar exportacion a PDF',
-    description: 'Permitir exportar scorecard como PDF',
-    status: 'done',
-    priority: 'low',
-    assignee: 'Claude',
-    due_date: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    project: {
-      id: 'golf',
-      name: 'Golf Shots',
-      slug: 'golf-shots',
-      description: null,
-      color: '#22c55e',
-      status: 'active',
-      health_score: 85,
-      total_sessions: 24,
-      total_events: 1250,
-      total_tasks: 12,
-      created_at: '',
-      updated_at: '',
-    },
-  },
-  {
-    id: '6',
-    project_id: 'asotoy',
-    title: 'Optimizar imagenes de productos',
-    description: 'Implementar lazy loading y formatos WebP',
-    status: 'done',
-    priority: 'medium',
-    assignee: 'Claude',
-    due_date: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    project: {
-      id: 'asotoy',
-      name: 'ASOTOY',
-      slug: 'asotoy',
-      description: null,
-      color: '#3b82f6',
-      status: 'active',
-      health_score: 72,
-      total_sessions: 18,
-      total_events: 890,
-      total_tasks: 8,
-      created_at: '',
-      updated_at: '',
-    },
-  },
-]
+import type { Task, TaskStatus, TaskPriority, ProjectDB } from '@/types/database'
 
 const columns: { id: TaskStatus; title: string; color: string }[] = [
-  { id: 'todo', title: 'Por Hacer', color: '#888888' },
+  { id: 'pending', title: 'Por Hacer', color: '#888888' },
   { id: 'in_progress', title: 'En Progreso', color: '#FF6B35' },
   { id: 'done', title: 'Completado', color: '#22c55e' },
 ]
 
+// Modal para crear nueva tarea
+function CreateTaskModal({
+  isOpen,
+  onClose,
+  onSubmit,
+  projects
+}: {
+  isOpen: boolean
+  onClose: () => void
+  onSubmit: (task: Omit<Task, 'id' | 'created_at' | 'completed_at'>) => Promise<void>
+  projects: ProjectDB[]
+}) {
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [projectSlug, setProjectSlug] = useState('')
+  const [priority, setPriority] = useState<TaskPriority>('medium')
+  const [assignedTo, setAssignedTo] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!title.trim()) return
+
+    setIsSubmitting(true)
+    try {
+      await onSubmit({
+        title: title.trim(),
+        description: description.trim() || null,
+        project_slug: projectSlug || projects[0]?.slug || '',
+        priority,
+        status: 'pending',
+        assigned_to: assignedTo.trim() || null,
+        created_by: 'human',
+      })
+      // Reset form
+      setTitle('')
+      setDescription('')
+      setProjectSlug('')
+      setPriority('medium')
+      setAssignedTo('')
+      onClose()
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  if (!isOpen) return null
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        className="bg-card border border-border rounded-xl shadow-xl w-full max-w-md"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <h2 className="text-lg font-semibold text-foreground">Nueva Tarea</h2>
+          <button
+            onClick={onClose}
+            className="p-1 hover:bg-background rounded-lg transition-colors"
+          >
+            <X className="w-5 h-5 text-muted" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+          {/* Titulo */}
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">
+              Titulo *
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Nombre de la tarea"
+              className="input w-full"
+              required
+              autoFocus
+            />
+          </div>
+
+          {/* Descripcion */}
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">
+              Descripcion
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Descripcion opcional"
+              rows={3}
+              className="input w-full resize-none"
+            />
+          </div>
+
+          {/* Proyecto */}
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">
+              Proyecto
+            </label>
+            <select
+              value={projectSlug}
+              onChange={(e) => setProjectSlug(e.target.value)}
+              className="input w-full"
+            >
+              <option value="">Seleccionar proyecto</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.slug}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Prioridad */}
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">
+              Prioridad
+            </label>
+            <select
+              value={priority}
+              onChange={(e) => setPriority(e.target.value as TaskPriority)}
+              className="input w-full"
+            >
+              <option value="low">Baja</option>
+              <option value="medium">Media</option>
+              <option value="high">Alta</option>
+              <option value="critical">Critica</option>
+            </select>
+          </div>
+
+          {/* Asignado a */}
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">
+              Asignado a
+            </label>
+            <input
+              type="text"
+              value={assignedTo}
+              onChange={(e) => setAssignedTo(e.target.value)}
+              placeholder="claude-code, human, etc."
+              className="input w-full"
+            />
+          </div>
+
+          {/* Botones */}
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="btn btn-secondary"
+              disabled={isSubmitting}
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={isSubmitting || !title.trim()}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Creando...
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Crear Tarea
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 // Componente de empty state mejorado
-function EmptyTasksState() {
+function EmptyTasksState({ onCreateClick }: { onCreateClick: () => void }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -210,7 +247,7 @@ function EmptyTasksState() {
         transition={{ delay: 0.2 }}
         className="text-xl font-semibold text-foreground mb-3"
       >
-        No hay tareas pendientes
+        Sin tareas
       </motion.h3>
 
       {/* Subtexto */}
@@ -230,6 +267,7 @@ function EmptyTasksState() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4 }}
         className="btn btn-primary"
+        onClick={onCreateClick}
       >
         <Plus className="w-4 h-4 mr-2" />
         Crear Primera Tarea
@@ -252,7 +290,7 @@ function EmptyTasksState() {
 // Componente de empty state para columna individual
 function EmptyColumnState({ status }: { status: TaskStatus }) {
   const messages = {
-    todo: 'Arrastra tareas aqui',
+    pending: 'Arrastra tareas aqui',
     in_progress: 'Sin tareas en progreso',
     done: 'Sin tareas completadas',
   }
@@ -270,37 +308,90 @@ function EmptyColumnState({ status }: { status: TaskStatus }) {
 }
 
 export default function TasksPage() {
-  const { tasks, setTasks, updateTask } = useDashboardStore()
+  const { tasks, setTasks, updateTask, addTask } = useDashboardStore()
   const [searchTerm, setSearchTerm] = useState('')
   const [draggedTask, setDraggedTask] = useState<Task | null>(null)
-  const [hasLoadedFromSupabase, setHasLoadedFromSupabase] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [projects, setProjects] = useState<ProjectDB[]>([])
+  const [selectedProject, setSelectedProject] = useState<string>('all')
 
+  // Fetch tasks from Supabase
   const fetchTasks = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('tasks')
-      .select('*, project:projects(*)')
-      .order('priority', { ascending: false })
+    setIsLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*, project:projects!tasks_project_slug_fkey(*)')
+        .order('created_at', { ascending: false })
 
-    if (error) {
-      console.error('Error fetching tasks:', error)
-      setTasks(demoTasks)
-    } else {
-      setTasks(data.length > 0 ? (data as Task[]) : demoTasks)
-      setHasLoadedFromSupabase(data.length > 0)
+      if (error) {
+        console.error('Error fetching tasks:', error)
+        // Fallback: try without relation
+        const { data: tasksOnly, error: tasksError } = await supabase
+          .from('tasks')
+          .select('*')
+          .order('created_at', { ascending: false })
+
+        if (!tasksError && tasksOnly) {
+          setTasks(tasksOnly as Task[])
+        }
+      } else if (data) {
+        setTasks(data as Task[])
+      }
+    } catch (err) {
+      console.error('Unexpected error:', err)
+    } finally {
+      setIsLoading(false)
     }
   }, [setTasks])
 
+  // Fetch projects from Supabase
+  const fetchProjects = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('projects')
+      .select('*')
+      .eq('active', true)
+      .order('name')
+
+    if (!error && data) {
+      setProjects(data as ProjectDB[])
+    }
+  }, [])
+
   useEffect(() => {
     fetchTasks()
+    fetchProjects()
+  }, [fetchTasks, fetchProjects])
+
+  // Real-time subscription
+  useEffect(() => {
+    const subscription = supabase
+      .channel('tasks-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tasks' },
+        () => {
+          fetchTasks()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      subscription.unsubscribe()
+    }
   }, [fetchTasks])
 
-  const displayTasks = tasks.length > 0 ? tasks : demoTasks
-
-  const filteredTasks = displayTasks.filter(
-    (task) =>
+  // Filter tasks
+  const filteredTasks = tasks.filter((task) => {
+    const matchesSearch =
       task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       task.description?.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+
+    const matchesProject = selectedProject === 'all' || task.project_slug === selectedProject
+
+    return matchesSearch && matchesProject
+  })
 
   const getTasksByStatus = (status: TaskStatus) =>
     filteredTasks.filter((task) => task.status === status)
@@ -322,32 +413,82 @@ export default function TasksPage() {
       return
     }
 
+    const oldStatus = draggedTask.status
+
     // Update locally first for instant feedback
     updateTask(draggedTask.id, { status: newStatus })
+
+    // Prepare update data
+    const updateData: Record<string, unknown> = { status: newStatus }
+
+    // If moving to done, set completed_at
+    if (newStatus === 'done') {
+      updateData.completed_at = new Date().toISOString()
+    } else if (oldStatus === 'done') {
+      // If moving out of done, clear completed_at
+      updateData.completed_at = null
+    }
 
     // Then update in database
     const { error } = await supabase
       .from('tasks')
-      .update({ status: newStatus } as Record<string, unknown>)
+      .update(updateData)
       .eq('id', draggedTask.id)
 
     if (error) {
       console.error('Error updating task:', error)
       // Revert on error
-      updateTask(draggedTask.id, { status: draggedTask.status })
+      updateTask(draggedTask.id, { status: oldStatus })
     }
 
     setDraggedTask(null)
   }
 
+  // Create new task
+  const handleCreateTask = async (taskData: Omit<Task, 'id' | 'created_at' | 'completed_at'>) => {
+    const { data, error } = await supabase
+      .from('tasks')
+      .insert([taskData])
+      .select('*, project:projects!tasks_project_slug_fkey(*)')
+      .single()
+
+    if (error) {
+      console.error('Error creating task:', error)
+      // Try without relation
+      const { data: taskOnly, error: taskError } = await supabase
+        .from('tasks')
+        .insert([taskData])
+        .select('*')
+        .single()
+
+      if (!taskError && taskOnly) {
+        addTask(taskOnly as Task)
+      } else {
+        throw taskError
+      }
+    } else if (data) {
+      addTask(data as Task)
+    }
+  }
+
   const taskCounts = {
-    todo: getTasksByStatus('todo').length,
+    pending: getTasksByStatus('pending').length,
     in_progress: getTasksByStatus('in_progress').length,
     done: getTasksByStatus('done').length,
   }
 
-  const totalTasks = taskCounts.todo + taskCounts.in_progress + taskCounts.done
-  const showEmptyState = totalTasks === 0 && !hasLoadedFromSupabase && tasks.length === 0
+  const totalTasks = taskCounts.pending + taskCounts.in_progress + taskCounts.done
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex items-center gap-3 text-muted">
+          <Loader2 className="w-6 h-6 animate-spin" />
+          <span>Cargando tareas...</span>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen p-6">
@@ -363,30 +504,50 @@ export default function TasksPage() {
               Kanban board para gestion de tareas
             </p>
           </div>
-          <button className="btn btn-primary">
+          <button
+            className="btn btn-primary"
+            onClick={() => setIsCreateModalOpen(true)}
+          >
             <Plus className="w-4 h-4 mr-2" />
             Nueva Tarea
           </button>
         </div>
 
-        {/* Search */}
-        {!showEmptyState && (
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
-            <input
-              type="text"
-              placeholder="Buscar tareas..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="input pl-10"
-            />
+        {/* Filters */}
+        {tasks.length > 0 && (
+          <div className="flex flex-wrap gap-4">
+            {/* Search */}
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+              <input
+                type="text"
+                placeholder="Buscar tareas..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="input pl-10 w-full"
+              />
+            </div>
+
+            {/* Project filter */}
+            <select
+              value={selectedProject}
+              onChange={(e) => setSelectedProject(e.target.value)}
+              className="input min-w-[200px]"
+            >
+              <option value="all">Todos los proyectos</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.slug}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
           </div>
         )}
       </div>
 
       {/* Empty State o Kanban Board */}
-      {showEmptyState ? (
-        <EmptyTasksState />
+      {totalTasks === 0 && tasks.length === 0 ? (
+        <EmptyTasksState onCreateClick={() => setIsCreateModalOpen(true)} />
       ) : (
         <div className="flex gap-6 overflow-x-auto pb-4">
           {columns.map((column) => (
@@ -440,6 +601,18 @@ export default function TasksPage() {
           ))}
         </div>
       )}
+
+      {/* Create Task Modal */}
+      <AnimatePresence>
+        {isCreateModalOpen && (
+          <CreateTaskModal
+            isOpen={isCreateModalOpen}
+            onClose={() => setIsCreateModalOpen(false)}
+            onSubmit={handleCreateTask}
+            projects={projects}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

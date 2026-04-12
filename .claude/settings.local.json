@@ -19,7 +19,9 @@
       "Bash(git push:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(node scripts/claude-hook.js:*)"
+      "Bash(node scripts/claude-hook.js:*)",
+      "Bash(git rev-list:*)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

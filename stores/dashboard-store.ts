@@ -67,6 +67,12 @@ export const useDashboardStore = create<DashboardState>((set) => ({
   addEvent: (event) =>
     set((state) => ({
       events: [event, ...state.events].slice(0, 100), // Keep last 100 events
+      // Also increment events_count for the corresponding session
+      activeSessions: state.activeSessions.map((s) =>
+        s.id === event.session_id
+          ? { ...s, events_count: (s.events_count || 0) + 1 }
+          : s
+      ),
     })),
 
   // Tasks

@@ -1,201 +1,19 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Clock, Filter, RefreshCw, Search } from 'lucide-react'
+import { Clock, Filter, RefreshCw, Search, AlertTriangle } from 'lucide-react'
 import { EventTimeline } from '@/components/dashboard/EventTimeline'
-import { supabase } from '@/lib/supabase'
 import { useProjects } from '@/hooks/useProjects'
+import { useAgentEvents } from '@/hooks/useAgentEvents'
 import { formatRelativeTime } from '@/lib/utils'
-import type { AgentEvent } from '@/types/database'
-
-// Demo events con timestamps dinamicos
-const createDemoEvents = (): AgentEvent[] => [
-  {
-    id: '1',
-    session_id: '1',
-    project_id: 'caracas-golf-market',
-    event_type: 'tool_use',
-    tool_name: 'Edit',
-    file_path: '/src/components/ScoreCard.tsx',
-    message: 'Actualizando logica de calculo de puntuacion',
-    metadata: { lines_changed: 15 },
-    created_at: new Date(Date.now() - 60000).toISOString(), // hace 1 minuto
-    project: {
-      id: 'caracas-golf-market',
-      name: 'Caracas Golf Market',
-      slug: 'caracas-golf-market',
-      description: null,
-      color: '#2D5016',
-      status: 'active',
-      health_score: 85,
-      total_sessions: 24,
-      total_events: 1250,
-      total_tasks: 12,
-      created_at: '',
-      updated_at: '',
-    },
-  },
-  {
-    id: '2',
-    session_id: '1',
-    project_id: 'caracas-golf-market',
-    event_type: 'file_read',
-    tool_name: 'Read',
-    file_path: '/src/utils/calculations.ts',
-    message: 'Leyendo utilidades de calculo',
-    metadata: null,
-    created_at: new Date(Date.now() - 120000).toISOString(), // hace 2 minutos
-    project: {
-      id: 'caracas-golf-market',
-      name: 'Caracas Golf Market',
-      slug: 'caracas-golf-market',
-      description: null,
-      color: '#2D5016',
-      status: 'active',
-      health_score: 85,
-      total_sessions: 24,
-      total_events: 1250,
-      total_tasks: 12,
-      created_at: '',
-      updated_at: '',
-    },
-  },
-  {
-    id: '3',
-    session_id: '2',
-    project_id: 'asotoy',
-    event_type: 'tool_use',
-    tool_name: 'Bash',
-    file_path: null,
-    message: 'Ejecutando npm install para nuevas dependencias',
-    metadata: { command: 'npm install stripe' },
-    created_at: new Date(Date.now() - 300000).toISOString(), // hace 5 minutos
-    project: {
-      id: 'asotoy',
-      name: 'ASOTOY',
-      slug: 'asotoy',
-      description: null,
-      color: '#CC0000',
-      status: 'active',
-      health_score: 72,
-      total_sessions: 18,
-      total_events: 890,
-      total_tasks: 8,
-      created_at: '',
-      updated_at: '',
-    },
-  },
-  {
-    id: '4',
-    session_id: '2',
-    project_id: 'asotoy',
-    event_type: 'file_edit',
-    tool_name: 'Write',
-    file_path: '/app/api/checkout/route.ts',
-    message: 'Creando endpoint de checkout',
-    metadata: { lines_added: 45 },
-    created_at: new Date(Date.now() - 600000).toISOString(), // hace 10 minutos
-    project: {
-      id: 'asotoy',
-      name: 'ASOTOY',
-      slug: 'asotoy',
-      description: null,
-      color: '#CC0000',
-      status: 'active',
-      health_score: 72,
-      total_sessions: 18,
-      total_events: 890,
-      total_tasks: 8,
-      created_at: '',
-      updated_at: '',
-    },
-  },
-  {
-    id: '5',
-    session_id: '3',
-    project_id: 'dabi',
-    event_type: 'error',
-    tool_name: null,
-    file_path: '/src/screens/Dashboard.tsx',
-    message: 'Error de compilacion TypeScript: Property does not exist',
-    metadata: { error_code: 'TS2339' },
-    created_at: new Date(Date.now() - 1800000).toISOString(), // hace 30 minutos
-    project: {
-      id: 'dabi',
-      name: 'Dabi',
-      slug: 'dabi',
-      description: null,
-      color: '#7C3AED',
-      status: 'active',
-      health_score: 91,
-      total_sessions: 32,
-      total_events: 2100,
-      total_tasks: 15,
-      created_at: '',
-      updated_at: '',
-    },
-  },
-  {
-    id: '6',
-    session_id: '3',
-    project_id: 'dabi',
-    event_type: 'completion',
-    tool_name: null,
-    file_path: null,
-    message: 'Tarea completada: Error de TypeScript corregido',
-    metadata: { duration_seconds: 120 },
-    created_at: new Date(Date.now() - 3600000).toISOString(), // hace 1 hora
-    project: {
-      id: 'dabi',
-      name: 'Dabi',
-      slug: 'dabi',
-      description: null,
-      color: '#7C3AED',
-      status: 'active',
-      health_score: 91,
-      total_sessions: 32,
-      total_events: 2100,
-      total_tasks: 15,
-      created_at: '',
-      updated_at: '',
-    },
-  },
-  {
-    id: '7',
-    session_id: '4',
-    project_id: 'flowmando-platform',
-    event_type: 'message',
-    tool_name: null,
-    file_path: null,
-    message: 'Iniciando refactor del sistema de autenticacion',
-    metadata: null,
-    created_at: new Date(Date.now() - 7200000).toISOString(), // hace 2 horas
-    project: {
-      id: 'flowmando-platform',
-      name: 'RYNO Studio',
-      slug: 'flowmando-platform',
-      description: null,
-      color: '#FF6B35',
-      status: 'active',
-      health_score: 88,
-      total_sessions: 45,
-      total_events: 3200,
-      total_tasks: 22,
-      created_at: '',
-      updated_at: '',
-    },
-  },
-]
 
 export default function HistoryPage() {
   const { projects } = useProjects()
-  const [events, setEvents] = useState<AgentEvent[]>([])
-  const [loading, setLoading] = useState(true)
+  const { events, loading, error, lastUpdate, refetch } = useAgentEvents(100)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedProject, setSelectedProject] = useState<string | null>(null)
   const [selectedEventType, setSelectedEventType] = useState<string | null>(null)
-  const [lastUpdate, setLastUpdate] = useState<Date>(new Date())
 
   // Actualizar timestamps cada minuto
   const [, setTick] = useState(0)
@@ -206,28 +24,6 @@ export default function HistoryPage() {
     return () => clearInterval(interval)
   }, [])
 
-  const fetchEvents = useCallback(async () => {
-    setLoading(true)
-    const { data, error } = await supabase
-      .from('agent_events')
-      .select('*, project:projects(*)')
-      .order('created_at', { ascending: false })
-      .limit(100)
-
-    if (error) {
-      console.error('Error fetching events:', error)
-      setEvents(createDemoEvents())
-    } else {
-      setEvents(data.length > 0 ? (data as AgentEvent[]) : createDemoEvents())
-    }
-    setLastUpdate(new Date())
-    setLoading(false)
-  }, [])
-
-  useEffect(() => {
-    fetchEvents()
-  }, [fetchEvents])
-
   const filteredEvents = events.filter((event) => {
     const matchesSearch =
       event.message?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -235,7 +31,7 @@ export default function HistoryPage() {
       event.tool_name?.toLowerCase().includes(searchTerm.toLowerCase())
 
     const matchesProject =
-      !selectedProject || event.project_id === selectedProject
+      !selectedProject || event.project_id === selectedProject || event.project?.slug === selectedProject
 
     const matchesEventType =
       !selectedEventType || event.event_type === selectedEventType
@@ -257,6 +53,9 @@ export default function HistoryPage() {
     return acc
   }, {} as Record<string, number>)
 
+  // Castear a AgentEvent para EventTimeline (compatible con la interfaz)
+  const timelineEvents = filteredEvents as unknown as import('@/types/database').AgentEvent[]
+
   return (
     <div className="min-h-screen p-6">
       {/* Header */}
@@ -276,7 +75,7 @@ export default function HistoryPage() {
             </p>
           </div>
           <button
-            onClick={fetchEvents}
+            onClick={refetch}
             className="btn btn-secondary"
             disabled={loading}
           >
@@ -284,6 +83,18 @@ export default function HistoryPage() {
             Actualizar
           </button>
         </div>
+
+        {/* Error message */}
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-4 p-4 bg-error/10 border border-error/20 rounded-lg flex items-center gap-3"
+          >
+            <AlertTriangle className="w-5 h-5 text-error" />
+            <p className="text-sm text-error">Error al cargar eventos: {error}</p>
+          </motion.div>
+        )}
 
         {/* Stats */}
         <div className="grid grid-cols-6 gap-4 mb-6">
@@ -330,7 +141,7 @@ export default function HistoryPage() {
             >
               <option value="">Todos los proyectos</option>
               {projects.map((project) => (
-                <option key={project.id} value={project.id}>
+                <option key={project.id} value={project.slug}>
                   {project.name}
                 </option>
               ))}
@@ -350,7 +161,7 @@ export default function HistoryPage() {
             <RefreshCw className="w-8 h-8 text-accent animate-spin" />
           </div>
         ) : (
-          <EventTimeline events={filteredEvents} showProject />
+          <EventTimeline events={timelineEvents} showProject />
         )}
       </motion.div>
     </div>

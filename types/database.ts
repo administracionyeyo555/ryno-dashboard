@@ -1,6 +1,6 @@
 export type ProjectStatus = 'active' | 'paused' | 'completed' | 'error'
 
-export type TaskStatus = 'todo' | 'in_progress' | 'done'
+export type TaskStatus = 'pending' | 'in_progress' | 'done'
 
 export type TaskPriority = 'low' | 'medium' | 'high' | 'critical'
 
@@ -47,18 +47,31 @@ export interface AgentEvent {
   project?: Project
 }
 
+// Task type matching Supabase table structure
 export interface Task {
   id: string
-  project_id: string
+  project_slug: string
   title: string
   description: string | null
   status: TaskStatus
   priority: TaskPriority
-  assignee: string | null
-  due_date: string | null
+  assigned_to: string | null
+  created_by: string
   created_at: string
-  updated_at: string
-  project?: Project
+  completed_at: string | null
+  // Relations
+  project?: ProjectDB
+}
+
+// Project type matching Supabase table structure
+export interface ProjectDB {
+  id: string
+  name: string
+  slug: string
+  color: string
+  repo_path: string
+  active: boolean
+  created_at: string
 }
 
 export interface Database {
@@ -81,8 +94,8 @@ export interface Database {
       }
       tasks: {
         Row: Task
-        Insert: Omit<Task, 'id' | 'created_at' | 'updated_at'>
-        Update: Partial<Omit<Task, 'id' | 'created_at' | 'updated_at'>>
+        Insert: Omit<Task, 'id' | 'created_at' | 'completed_at'>
+        Update: Partial<Omit<Task, 'id' | 'created_at'>>
       }
     }
   }
