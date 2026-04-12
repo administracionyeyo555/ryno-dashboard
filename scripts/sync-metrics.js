@@ -25,7 +25,8 @@ const PROJECTS = [
   { slug: 'caracas-golf-market', path: 'C:\\Users\\EQUIPO\\Desktop\\caracas-golf-market' },
   { slug: 'dabi', path: 'C:\\Users\\EQUIPO\\Desktop\\dabi' },
   { slug: 'flowmando-platform', path: 'C:\\Users\\EQUIPO\\Desktop\\flowmando-platform' },
-  { slug: 'flowmando', path: 'C:\\Users\\EQUIPO\\Desktop\\flowmando' }
+  // Agrega nuevos proyectos aqui:
+  // { slug: 'mi-proyecto', path: 'C:\\Users\\EQUIPO\\Desktop\\mi-proyecto' },
 ];
 
 // Load environment variables from .env.local
@@ -293,7 +294,8 @@ function collectMetrics(project) {
  * Upsert metrics to Supabase
  */
 async function upsertMetrics(metrics) {
-  const url = `${SUPABASE_URL}/rest/v1/project_metrics`;
+  // Use on_conflict parameter for proper upsert
+  const url = `${SUPABASE_URL}/rest/v1/project_metrics?on_conflict=project_slug`;
 
   const response = await fetch(url, {
     method: 'POST',

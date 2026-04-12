@@ -16,11 +16,12 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // Mapeo de slugs a rutas de repositorios (solo usado localmente)
+// Nota: Solo incluir proyectos que son repos git
 const repoPathMap: Record<string, string> = {
   'caracas-golf-market': 'C:\\Users\\EQUIPO\\Desktop\\caracas-golf-market',
   'dabi': 'C:\\Users\\EQUIPO\\Desktop\\dabi',
   'flowmando-platform': 'C:\\Users\\EQUIPO\\Desktop\\flowmando-platform',
-  'flowmando': 'C:\\Users\\EQUIPO\\Desktop\\flowmando',
+  // 'flowmando' no es un repo git - si lo inicializas, agregalo aqui
 }
 
 // Lista de todos los proyectos (usada en Vercel para saber que proyectos buscar)
@@ -102,7 +103,10 @@ async function saveMetricsToSupabase(slug: string, metrics: GitMetrics): Promise
 
     const { error } = await supabase
       .from('project_metrics')
-      .upsert(row, { onConflict: 'project_slug' })
+      .upsert(row, {
+        onConflict: 'project_slug',
+        ignoreDuplicates: false
+      })
 
     if (error) {
       console.log(`[git-metrics] Error saving metrics for ${slug}:`, error.message)
