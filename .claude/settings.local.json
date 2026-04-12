@@ -12,7 +12,8 @@
       "mcp__claude_ai_Supabase__list_projects",
       "mcp__claude_ai_Supabase__execute_sql",
       "Bash(curl:*)",
-      "Bash(ls -la \"C:\\\\Users\\\\EQUIPO\\\\Documents\\\\CEREBRO FLOWMANDO 3\\\\app\\\\monitor\\\\projects\"\" 2>/dev/null || echo \"Carpeta projects no existe \")"
+      "Bash(ls -la \"C:\\\\Users\\\\EQUIPO\\\\Documents\\\\CEREBRO FLOWMANDO 3\\\\app\\\\monitor\\\\projects\"\" 2>/dev/null || echo \"Carpeta projects no existe \")",
+      "Bash(gh auth status:*)"
     ]
   }
 }
