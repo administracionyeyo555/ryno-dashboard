@@ -19,10 +19,18 @@ interface DBProject {
   active: boolean
 }
 
+interface CommitFile {
+  path: string
+  added: number
+  deleted: number
+}
+
 interface LastCommit {
   message: string
   timeAgo: string
   timestamp: Date | null
+  author?: string
+  files?: CommitFile[]
 }
 
 interface AgentSession {
@@ -312,13 +320,43 @@ export default function ProjectsPage() {
               {/* Last Commit */}
               {metrics.lastCommit && (
                 <div className="mb-4 p-3 bg-background/50 rounded-lg border border-border/50">
-                  <div className="flex items-center gap-2 text-xs text-muted mb-1">
-                    <Clock className="w-3 h-3" />
-                    <span>Ultimo commit: {metrics.lastCommit.timeAgo}</span>
+                  <div className="flex items-center justify-between text-xs text-muted mb-1">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-3 h-3" />
+                      <span>Ultimo commit: {metrics.lastCommit.timeAgo}</span>
+                    </div>
+                    {metrics.lastCommit.author && (
+                      <span className="text-accent">{metrics.lastCommit.author}</span>
+                    )}
                   </div>
-                  <p className="text-sm text-foreground truncate" title={metrics.lastCommit.message}>
+                  <p className="text-sm text-foreground mb-2" title={metrics.lastCommit.message}>
                     {metrics.lastCommit.message}
                   </p>
+                  {/* Files changed */}
+                  {metrics.lastCommit.files && metrics.lastCommit.files.length > 0 && (
+                    <div className="space-y-1 pt-2 border-t border-border/30">
+                      {metrics.lastCommit.files.slice(0, 4).map((file, idx) => (
+                        <div key={idx} className="flex items-center justify-between text-xs">
+                          <span className="text-muted font-mono truncate max-w-[200px]" title={file.path}>
+                            {file.path.split('/').pop()}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            {file.added > 0 && (
+                              <span className="text-green-400">+{file.added}</span>
+                            )}
+                            {file.deleted > 0 && (
+                              <span className="text-red-400">-{file.deleted}</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      {metrics.lastCommit.files.length > 4 && (
+                        <span className="text-xs text-muted">
+                          +{metrics.lastCommit.files.length - 4} archivos mas
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 

@@ -170,17 +170,51 @@ function getLastCommit(projectPath) {
     return {
       message: null,
       author: null,
-      date: null
+      date: null,
+      files: []
     };
   }
 
   const [message, author, date] = result.split('|');
 
+  // Get files changed in last commit
+  const files = getLastCommitFiles(projectPath);
+
   return {
     message: message || null,
     author: author || null,
-    date: date ? new Date(date).toISOString() : null
+    date: date ? new Date(date).toISOString() : null,
+    files: files
   };
+}
+
+/**
+ * Get files changed in the last commit with stats
+ */
+function getLastCommitFiles(projectPath) {
+  const result = git(projectPath, 'log -1 --numstat --format=""');
+
+  if (!result) return [];
+
+  const files = [];
+  const lines = result.split('\n').filter(line => line.trim());
+
+  for (const line of lines) {
+    const parts = line.split('\t');
+    if (parts.length >= 3) {
+      const added = parts[0] === '-' ? 0 : parseInt(parts[0], 10) || 0;
+      const deleted = parts[1] === '-' ? 0 : parseInt(parts[1], 10) || 0;
+      const filePath = parts[2];
+
+      files.push({
+        path: filePath,
+        added: added,
+        deleted: deleted
+      });
+    }
+  }
+
+  return files.slice(0, 10); // Limitar a 10 archivos max
 }
 
 /**
@@ -267,6 +301,7 @@ function collectMetrics(project) {
     last_commit_message: lastCommit.message,
     last_commit_author: lastCommit.author,
     last_commit_date: lastCommit.date,
+    last_commit_files: lastCommit.files || [],
     branch: getCurrentBranch(project.path),
     uncommitted_files: getUncommittedFiles(project.path),
     health_score: 0,
@@ -281,6 +316,7 @@ function collectMetrics(project) {
   console.log(`    Lines: ${metrics.lines.toLocaleString()}`);
   console.log(`    Branch: ${metrics.branch}`);
   console.log(`    Uncommitted: ${metrics.uncommitted_files}`);
+  console.log(`    Changed files: ${metrics.last_commit_files.length}`);
   console.log(`    Health Score: ${metrics.health_score}`);
 
   return metrics;

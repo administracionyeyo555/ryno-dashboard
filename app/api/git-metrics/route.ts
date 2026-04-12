@@ -27,11 +27,18 @@ const repoPathMap: Record<string, string> = {
 // Lista de todos los proyectos (usada en Vercel para saber que proyectos buscar)
 const projectSlugs = Object.keys(repoPathMap)
 
+interface CommitFile {
+  path: string
+  added: number
+  deleted: number
+}
+
 interface LastCommit {
   message: string
   timeAgo: string
   timestamp: Date | null
   author?: string
+  files?: CommitFile[]
 }
 
 interface AgentSession {
@@ -74,6 +81,7 @@ interface ProjectMetricsRow {
   last_commit_author: string | null
   last_commit_date: string | null
   last_commit_time_ago: string | null
+  last_commit_files: CommitFile[] | null
   current_branch: string | null
   uncommitted_files: number | null
   health_status: HealthStatus
@@ -94,6 +102,7 @@ async function saveMetricsToSupabase(slug: string, metrics: GitMetrics): Promise
       last_commit_author: metrics.lastCommit?.author || null,
       last_commit_date: metrics.lastCommit?.timestamp?.toISOString() || null,
       last_commit_time_ago: metrics.lastCommit?.timeAgo || null,
+      last_commit_files: metrics.lastCommit?.files || null,
       current_branch: metrics.currentBranch,
       uncommitted_files: metrics.uncommittedFiles,
       health_status: metrics.healthStatus,
@@ -155,7 +164,8 @@ async function getMetricsFromSupabase(slug: string): Promise<GitMetrics> {
         message: metricsData.last_commit_message,
         timeAgo: metricsData.last_commit_time_ago || '',
         author: metricsData.last_commit_author || undefined,
-        timestamp: metricsData.last_commit_date ? new Date(metricsData.last_commit_date) : null
+        timestamp: metricsData.last_commit_date ? new Date(metricsData.last_commit_date) : null,
+        files: metricsData.last_commit_files || []
       }
     }
 
@@ -315,11 +325,29 @@ async function getGitMetrics(slug: string, repoPath: string): Promise<GitMetrics
   if (lastCommitOutput) {
     const parts = lastCommitOutput.split('|')
     if (parts.length >= 4) {
+      // Get files changed in last commit
+      const commitFiles: CommitFile[] = []
+      const numstatOutput = await runGitCommand('git log -1 --numstat --format=""', repoPath)
+      if (numstatOutput) {
+        const fileLines = numstatOutput.split('\n').filter(Boolean)
+        for (const line of fileLines) {
+          const fileParts = line.split('\t')
+          if (fileParts.length >= 3) {
+            commitFiles.push({
+              path: fileParts[2],
+              added: fileParts[0] === '-' ? 0 : parseInt(fileParts[0], 10) || 0,
+              deleted: fileParts[1] === '-' ? 0 : parseInt(fileParts[1], 10) || 0
+            })
+          }
+        }
+      }
+
       lastCommit = {
         message: parts[0].replace(/^"|"$/g, ''),
         author: parts[1],
         timeAgo: parts[2],
-        timestamp: null
+        timestamp: null,
+        files: commitFiles.slice(0, 10) // Max 10 files
       }
       // Parsear timestamp ISO para calcular health
       try {
