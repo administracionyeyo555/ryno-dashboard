@@ -11,7 +11,10 @@ import {
   Inbox,
   X,
   Loader2,
-  FolderKanban
+  FolderKanban,
+  Copy,
+  Check,
+  ArrowLeft
 } from 'lucide-react'
 import { TaskCard } from '@/components/dashboard/TaskCard'
 import { supabase } from '@/lib/supabase'
@@ -23,6 +26,34 @@ const columns: { id: TaskStatus; title: string; color: string }[] = [
   { id: 'in_progress', title: 'En Progreso', color: '#FF6B35' },
   { id: 'done', title: 'Completado', color: '#22c55e' },
 ]
+
+// Interfaz para la tarea creada con el prompt
+interface CreatedTaskInfo {
+  title: string
+  description: string | null
+  projectName: string
+  priority: TaskPriority
+}
+
+// Genera el prompt para Claude Code
+function generateClaudePrompt(task: CreatedTaskInfo): string {
+  const priorityLabels: Record<TaskPriority, string> = {
+    low: 'Baja',
+    medium: 'Media',
+    high: 'Alta',
+    critical: 'Critica'
+  }
+
+  return `Tarea: ${task.title}
+Proyecto: ${task.projectName}
+Prioridad: ${priorityLabels[task.priority]}
+
+Descripcion:
+${task.description || 'Sin descripcion adicional.'}
+
+---
+Cuando termines, marca la tarea como completada.`
+}
 
 // Modal para crear nueva tarea
 function CreateTaskModal({
@@ -44,12 +75,18 @@ function CreateTaskModal({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Estado para mostrar el prompt despues de crear
+  const [createdTask, setCreatedTask] = useState<CreatedTaskInfo | null>(null)
+  const [copied, setCopied] = useState(false)
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim()) return
 
     setIsSubmitting(true)
     setError(null)
+
+    const selectedProject = projects.find(p => p.slug === projectSlug) || projects[0]
 
     try {
       await onSubmit({
@@ -61,19 +98,55 @@ function CreateTaskModal({
         assigned_to: assignedTo.trim() || null,
         created_by: 'human',
       })
-      // Reset form
-      setTitle('')
-      setDescription('')
-      setProjectSlug('')
-      setPriority('medium')
-      setAssignedTo('')
-      onClose()
+
+      // Guardar info de la tarea creada para mostrar el prompt
+      setCreatedTask({
+        title: title.trim(),
+        description: description.trim() || null,
+        projectName: selectedProject?.name || projectSlug || 'Sin proyecto',
+        priority
+      })
     } catch (err) {
       setError('Error al crear la tarea. Intenta de nuevo.')
       console.error('Error creating task:', err)
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  const handleCopyPrompt = async () => {
+    if (!createdTask) return
+
+    const prompt = generateClaudePrompt(createdTask)
+    try {
+      await navigator.clipboard.writeText(prompt)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      console.error('Error copying to clipboard:', err)
+    }
+  }
+
+  const handleCreateAnother = () => {
+    setCreatedTask(null)
+    setTitle('')
+    setDescription('')
+    setProjectSlug('')
+    setPriority('medium')
+    setAssignedTo('')
+    setCopied(false)
+  }
+
+  const handleClose = () => {
+    setCreatedTask(null)
+    setTitle('')
+    setDescription('')
+    setProjectSlug('')
+    setPriority('medium')
+    setAssignedTo('')
+    setError(null)
+    setCopied(false)
+    onClose()
   }
 
   // Reset form when modal opens
@@ -85,6 +158,8 @@ function CreateTaskModal({
       setPriority('medium')
       setAssignedTo('')
       setError(null)
+      setCreatedTask(null)
+      setCopied(false)
     }
   }, [isOpen])
 
@@ -96,7 +171,7 @@ function CreateTaskModal({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-      onClick={onClose}
+      onClick={handleClose}
     >
       <motion.div
         initial={{ scale: 0.95, opacity: 0 }}
@@ -105,135 +180,212 @@ function CreateTaskModal({
         className="bg-card border border-border rounded-xl shadow-xl w-full max-w-md"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-            <Plus className="w-5 h-5 text-accent" />
-            Nueva Tarea
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-1 hover:bg-background rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5 text-muted" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
-          {error && (
-            <div className="p-3 bg-error/10 border border-error/20 rounded-lg text-error text-sm">
-              {error}
+        {/* Vista del prompt despues de crear */}
+        {createdTask ? (
+          <>
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                <Check className="w-5 h-5 text-green-500" />
+                Tarea Creada
+              </h2>
+              <button
+                onClick={handleClose}
+                className="p-1 hover:bg-background rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-muted" />
+              </button>
             </div>
-          )}
 
-          {/* Titulo */}
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1">
-              Titulo <span className="text-error">*</span>
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Nombre de la tarea"
-              className="input w-full"
-              required
-              autoFocus
-            />
-          </div>
+            <div className="p-4 space-y-4">
+              <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-green-400 text-sm">
+                La tarea &ldquo;{createdTask.title}&rdquo; ha sido creada exitosamente.
+              </div>
 
-          {/* Descripcion */}
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1">
-              Descripcion
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Descripcion opcional de la tarea"
-              rows={3}
-              className="input w-full resize-none"
-            />
-          </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">
+                  Prompt para Claude Code
+                </label>
+                <p className="text-xs text-muted mb-2">
+                  Copia este prompt y pegalo en Claude Code para trabajar en la tarea:
+                </p>
+                <div className="relative">
+                  <textarea
+                    readOnly
+                    value={generateClaudePrompt(createdTask)}
+                    className="input w-full resize-none font-mono text-sm bg-background"
+                    rows={8}
+                  />
+                  <button
+                    onClick={handleCopyPrompt}
+                    className={`absolute top-2 right-2 p-2 rounded-lg transition-all ${
+                      copied
+                        ? 'bg-green-500/20 text-green-400'
+                        : 'bg-background hover:bg-card text-muted hover:text-foreground'
+                    }`}
+                    title={copied ? 'Copiado!' : 'Copiar prompt'}
+                  >
+                    {copied ? (
+                      <Check className="w-4 h-4" />
+                    ) : (
+                      <Copy className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
 
-          {/* Proyecto */}
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1">
-              Proyecto
-            </label>
-            <select
-              value={projectSlug}
-              onChange={(e) => setProjectSlug(e.target.value)}
-              className="input w-full"
-            >
-              <option value="">Seleccionar proyecto</option>
-              {projects.map((project) => (
-                <option key={project.id} value={project.slug}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-          </div>
+              <div className="flex justify-between gap-3 pt-4 border-t border-border">
+                <button
+                  type="button"
+                  onClick={handleCreateAnother}
+                  className="btn btn-secondary flex items-center gap-2"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  Crear Otra
+                </button>
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  className="btn btn-primary"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </>
+        ) : (
+          /* Formulario de creacion */
+          <>
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                <Plus className="w-5 h-5 text-accent" />
+                Nueva Tarea
+              </h2>
+              <button
+                onClick={handleClose}
+                className="p-1 hover:bg-background rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-muted" />
+              </button>
+            </div>
 
-          {/* Prioridad */}
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1">
-              Prioridad
-            </label>
-            <select
-              value={priority}
-              onChange={(e) => setPriority(e.target.value as TaskPriority)}
-              className="input w-full"
-            >
-              <option value="low">Baja (Gris)</option>
-              <option value="medium">Media (Azul)</option>
-              <option value="high">Alta (Naranja)</option>
-              <option value="critical">Critica (Rojo)</option>
-            </select>
-          </div>
-
-          {/* Asignado a */}
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1">
-              Asignado a
-            </label>
-            <input
-              type="text"
-              value={assignedTo}
-              onChange={(e) => setAssignedTo(e.target.value)}
-              placeholder="claude-code, human, etc. (opcional)"
-              className="input w-full"
-            />
-          </div>
-
-          {/* Botones */}
-          <div className="flex justify-end gap-3 pt-4 border-t border-border">
-            <button
-              type="button"
-              onClick={onClose}
-              className="btn btn-secondary"
-              disabled={isSubmitting}
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={isSubmitting || !title.trim()}
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Creando...
-                </>
-              ) : (
-                <>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Crear Tarea
-                </>
+            <form onSubmit={handleSubmit} className="p-4 space-y-4">
+              {error && (
+                <div className="p-3 bg-error/10 border border-error/20 rounded-lg text-error text-sm">
+                  {error}
+                </div>
               )}
-            </button>
-          </div>
-        </form>
+
+              {/* Titulo */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Titulo <span className="text-error">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Nombre de la tarea"
+                  className="input w-full"
+                  required
+                  autoFocus
+                />
+              </div>
+
+              {/* Descripcion */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Descripcion
+                </label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Descripcion opcional de la tarea"
+                  rows={3}
+                  className="input w-full resize-none"
+                />
+              </div>
+
+              {/* Proyecto */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Proyecto
+                </label>
+                <select
+                  value={projectSlug}
+                  onChange={(e) => setProjectSlug(e.target.value)}
+                  className="input w-full"
+                >
+                  <option value="">Seleccionar proyecto</option>
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.slug}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Prioridad */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Prioridad
+                </label>
+                <select
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value as TaskPriority)}
+                  className="input w-full"
+                >
+                  <option value="low">Baja (Gris)</option>
+                  <option value="medium">Media (Azul)</option>
+                  <option value="high">Alta (Naranja)</option>
+                  <option value="critical">Critica (Rojo)</option>
+                </select>
+              </div>
+
+              {/* Asignado a */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Asignado a
+                </label>
+                <input
+                  type="text"
+                  value={assignedTo}
+                  onChange={(e) => setAssignedTo(e.target.value)}
+                  placeholder="claude-code, human, etc. (opcional)"
+                  className="input w-full"
+                />
+              </div>
+
+              {/* Botones */}
+              <div className="flex justify-end gap-3 pt-4 border-t border-border">
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  className="btn btn-secondary"
+                  disabled={isSubmitting}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={isSubmitting || !title.trim()}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Creando...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Crear Tarea
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </>
+        )}
       </motion.div>
     </motion.div>
   )

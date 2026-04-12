@@ -17,11 +17,18 @@ import {
   WifiOff,
   LogOut,
   User,
+  Bell,
+  Check,
+  CheckCheck,
+  AlertCircle,
+  Info,
+  AlertTriangle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useDashboardStore } from '@/stores/dashboard-store'
 import { useSupabaseStatus } from '@/hooks/useSupabaseStatus'
 import { getUser, logout, type AuthUser } from '@/lib/auth'
+import { useNotifications, type AgentNotification } from '@/hooks/useNotifications'
 
 const navItems = [
   {
@@ -50,16 +57,74 @@ const navItems = [
   },
 ]
 
+// Helper para obtener icono segun tipo de notificacion
+function getNotificationIcon(type: AgentNotification['type']) {
+  switch (type) {
+    case 'success':
+      return <Check className="w-4 h-4 text-success" />
+    case 'error':
+      return <AlertCircle className="w-4 h-4 text-error" />
+    case 'warning':
+      return <AlertTriangle className="w-4 h-4 text-warning" />
+    default:
+      return <Info className="w-4 h-4 text-accent" />
+  }
+}
+
+// Helper para formatear fecha relativa
+function formatRelativeTime(dateString: string): string {
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+
+  if (diffMins < 1) return 'Ahora'
+  if (diffMins < 60) return `Hace ${diffMins}m`
+  if (diffHours < 24) return `Hace ${diffHours}h`
+  if (diffDays < 7) return `Hace ${diffDays}d`
+  return date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })
+}
+
 export function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const { isSidebarCollapsed, toggleSidebar } = useDashboardStore()
   const { isConnected, isChecking, lastCheck } = useSupabaseStatus(30000)
   const [user, setUser] = useState<AuthUser | null>(null)
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
+
+  // Hook de notificaciones
+  const {
+    notifications,
+    unreadCount,
+    isLoading: isLoadingNotifications,
+    markAsRead,
+    markAllAsRead
+  } = useNotifications({ limit: 10 })
 
   useEffect(() => {
     setUser(getUser())
   }, [])
+
+  // Cerrar dropdown al hacer click fuera
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest('.notifications-dropdown')) {
+        setIsNotificationsOpen(false)
+      }
+    }
+
+    if (isNotificationsOpen) {
+      document.addEventListener('click', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('click', handleClickOutside)
+    }
+  }, [isNotificationsOpen])
 
   const handleLogout = () => {
     logout()
@@ -148,6 +213,132 @@ export function Sidebar() {
           )
         })}
       </nav>
+
+      {/* Notifications Button */}
+      <div className="px-3 pb-2 notifications-dropdown relative">
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            setIsNotificationsOpen(!isNotificationsOpen)
+          }}
+          className={cn(
+            'w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors hover:bg-background/50',
+            isSidebarCollapsed && 'justify-center px-0'
+          )}
+          title={isSidebarCollapsed ? `Notificaciones (${unreadCount})` : undefined}
+        >
+          <div className="relative">
+            <Bell className={cn(
+              'w-5 h-5',
+              unreadCount > 0 ? 'text-accent' : 'text-muted'
+            )} />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-error text-[10px] text-white font-bold rounded-full flex items-center justify-center">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </div>
+          {!isSidebarCollapsed && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex flex-col flex-1"
+            >
+              <span className="font-medium text-sm">Notificaciones</span>
+              <span className="text-xs text-muted">
+                {unreadCount > 0 ? `${unreadCount} sin leer` : 'Sin notificaciones'}
+              </span>
+            </motion.div>
+          )}
+        </button>
+
+        {/* Notifications Dropdown */}
+        {isNotificationsOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            transition={{ duration: 0.15 }}
+            className={cn(
+              'absolute bottom-full mb-2 bg-card border border-border rounded-lg shadow-xl overflow-hidden z-[100]',
+              isSidebarCollapsed ? 'left-full ml-2 w-80' : 'left-0 w-full'
+            )}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-background/50">
+              <span className="font-semibold text-sm">Notificaciones</span>
+              {unreadCount > 0 && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    markAllAsRead()
+                  }}
+                  className="text-xs text-accent hover:text-accent/80 flex items-center gap-1"
+                >
+                  <CheckCheck className="w-3 h-3" />
+                  Marcar todas
+                </button>
+              )}
+            </div>
+
+            {/* Notifications List */}
+            <div className="max-h-64 overflow-y-auto">
+              {isLoadingNotifications ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : notifications.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-muted">
+                  <Bell className="w-8 h-8 mb-2 opacity-50" />
+                  <span className="text-sm">Sin notificaciones</span>
+                </div>
+              ) : (
+                notifications.map((notification) => (
+                  <button
+                    key={notification.id}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (!notification.read) {
+                        markAsRead(notification.id)
+                      }
+                    }}
+                    className={cn(
+                      'w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-background/50 transition-colors border-b border-border/50 last:border-0',
+                      !notification.read && 'bg-accent/5'
+                    )}
+                  >
+                    <div className="shrink-0 mt-0.5">
+                      {getNotificationIcon(notification.type)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={cn(
+                        'text-sm line-clamp-2',
+                        !notification.read && 'font-medium'
+                      )}>
+                        {notification.message}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-[10px] text-muted">
+                          {notification.project_slug}
+                        </span>
+                        <span className="text-[10px] text-muted">
+                          {formatRelativeTime(notification.created_at)}
+                        </span>
+                      </div>
+                    </div>
+                    {!notification.read && (
+                      <div className="shrink-0">
+                        <span className="w-2 h-2 rounded-full bg-accent block" />
+                      </div>
+                    )}
+                  </button>
+                ))
+              )}
+            </div>
+          </motion.div>
+        )}
+      </div>
 
       {/* Supabase Connection Status */}
       <div className="px-3 pb-2">
