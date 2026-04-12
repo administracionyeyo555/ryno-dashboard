@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     // Buscar usuario en la tabla admin_users
     const { data: user, error } = await supabase
       .from('admin_users')
-      .select('id, username, password_hash, display_name')
+      .select('id, username, password_hash, display_name, role')
       .eq('username', username)
       .single()
 
@@ -41,6 +41,7 @@ export async function POST(request: NextRequest) {
         id: user.id,
         username: user.username,
         displayName: user.display_name || user.username,
+        role: user.role || 'admin',
       },
     })
   } catch (error) {

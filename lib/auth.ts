@@ -5,6 +5,7 @@ export interface AuthUser {
   id: string
   username: string
   displayName: string
+  role: 'admin' | 'user'
 }
 
 const AUTH_KEY = 'ryno_auth_user'

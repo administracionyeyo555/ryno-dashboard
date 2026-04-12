@@ -21,7 +21,6 @@ const createDemoSessions = (): AgentSession[] => [
     ended_at: null,
     duration_seconds: 1800,
     events_count: 45,
-    isTyping: true,
     project: {
       id: 'caracas-golf-market',
       name: 'Caracas Golf Market',
@@ -48,7 +47,6 @@ const createDemoSessions = (): AgentSession[] => [
     ended_at: null,
     duration_seconds: 900,
     events_count: 23,
-    isTyping: true,
     project: {
       id: 'asotoy',
       name: 'ASOTOY',
@@ -75,7 +73,6 @@ const createDemoSessions = (): AgentSession[] => [
     ended_at: null,
     duration_seconds: 3600,
     events_count: 67,
-    isTyping: true,
     project: {
       id: 'dabi',
       name: 'Dabi App',
