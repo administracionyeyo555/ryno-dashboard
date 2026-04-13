@@ -5,9 +5,15 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Activity, RefreshCw, Search, Filter, Clock, Loader2, ToggleLeft, ToggleRight } from 'lucide-react'
 import { AgentCard } from '@/components/dashboard/AgentCard'
 import { SessionDetailModal } from '@/components/dashboard/SessionDetailModal'
+import { SkeletonAgentCard } from '@/components/ui/Skeleton'
 import { useRealtimeAgents } from '@/hooks/useRealtimeAgents'
 import { useProjects } from '@/hooks/useProjects'
 import type { AgentSession } from '@/types/database'
+import {
+  springPhysics,
+  staggerContainerVariants,
+  staggerItemVariants,
+} from '@/lib/animations'
 
 // Componente de estado vacio mejorado
 function EmptyState() {
@@ -125,7 +131,7 @@ function EmptyState() {
 }
 
 export default function LivePage() {
-  const { activeSessions, refetch } = useRealtimeAgents()
+  const { activeSessions, refetch, isLoading } = useRealtimeAgents()
   const { projects } = useProjects()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedProject, setSelectedProject] = useState<string | null>(null)
@@ -364,32 +370,55 @@ export default function LivePage() {
       </div>
 
       {/* Contenido principal */}
-      {showRealEmptyState ? (
+      {isLoading ? (
+        // Skeleton loading state
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <SkeletonAgentCard key={i} />
+          ))}
+        </div>
+      ) : showRealEmptyState ? (
         <EmptyState />
       ) : (
         <>
-          {/* Agent Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {/* Agent Grid with stagger animation */}
+          <motion.div
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+            variants={staggerContainerVariants}
+            initial="hidden"
+            animate="visible"
+          >
             <AnimatePresence mode="popLayout">
               {filteredSessions.map((session, index) => (
-                <AgentCard
+                <motion.div
                   key={session.id}
-                  session={session}
-                  index={index}
-                  isDemo={false}
-                  onClick={() => handleCardClick(session)}
-                />
+                  variants={staggerItemVariants}
+                  layout
+                >
+                  <AgentCard
+                    session={session}
+                    index={index}
+                    isDemo={false}
+                    onClick={() => handleCardClick(session)}
+                  />
+                </motion.div>
               ))}
             </AnimatePresence>
-          </div>
+          </motion.div>
 
           {filteredSessions.length === 0 && sessions.length > 0 && (
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={springPhysics.smooth}
               className="flex flex-col items-center justify-center py-20 text-muted"
             >
-              <Search className="w-16 h-16 mb-4 opacity-50" />
+              <motion.div
+                animate={{ y: [0, -5, 0] }}
+                transition={{ duration: 2, repeat: Infinity }}
+              >
+                <Search className="w-16 h-16 mb-4 opacity-50" />
+              </motion.div>
               <p className="text-lg">No se encontraron agentes</p>
               <p className="text-sm">Intenta con otros filtros de busqueda</p>
             </motion.div>

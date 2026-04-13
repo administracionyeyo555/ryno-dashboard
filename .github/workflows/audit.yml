@@ -1,0 +1,52 @@
+name: Daily Audit
+
+on:
+  schedule:
+    - cron: '0 3 * * *'  # 3am UTC = 11pm Venezuela
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout cerebro-flowmando
+        uses: actions/checkout@v4
+        with:
+          path: cerebro-flowmando
+
+      - name: Checkout caracas-golf-market
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/caracas-golf-market
+          path: caracas-golf-market
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Checkout dabi
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/dabi
+          path: dabi
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          cd cerebro-flowmando
+          npm ci
+
+      - name: Run audit
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          cd cerebro-flowmando
+          node scripts/audit.js
+
+      - name: Report results
+        if: always()
+        run: |
+          echo "Audit completed at $(date)"
