@@ -2,5 +2,26 @@
   "permissions": {
     "allow": ["Bash(*)", "Read(*)", "Write(*)", "Edit(*)", "MultiEdit(*)"],
     "deny": []
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "node scripts/claude-hook.js"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "type": "command",
+        "command": "node scripts/claude-hook.js",
+        "matcher": "Write|Edit|Bash"
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "node scripts/claude-hook.js"
+      }
+    ]
   }
 }

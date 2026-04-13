@@ -22,6 +22,8 @@ import {
   AlertCircle,
   Info,
   AlertTriangle,
+  History,
+  BookOpen,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useDashboardStore } from '@/stores/dashboard-store'
@@ -58,6 +60,18 @@ const navItems = [
     href: '/monitor/tasks',
     icon: CheckSquare,
     description: 'Kanban board',
+  },
+  {
+    name: 'Changelog',
+    href: '/monitor/changelog',
+    icon: History,
+    description: 'Historial de commits',
+  },
+  {
+    name: 'Wiki',
+    href: '/monitor/wiki',
+    icon: BookOpen,
+    description: 'Documentacion',
   },
 ]
 

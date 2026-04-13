@@ -17,8 +17,8 @@
  */
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://xzkasvcqvddmgybzajeu.supabase.co';
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
-const FLOWMANDO_PROJECT = process.env.FLOWMANDO_PROJECT || '';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'sb_publishable_HSS4nyz3z9H5dzMRJgtHog_pNiXp0At';
+const FLOWMANDO_PROJECT = process.env.FLOWMANDO_PROJECT || 'cerebro-flowmando';
 
 /**
  * Lee todo el stdin y parsea como JSON
@@ -101,15 +101,11 @@ async function handleSessionStart(event) {
   }
 
   await supabaseRequest('agent_sessions', 'POST', {
-    session_id: sessionId,
+    id: sessionId,
     project_slug: FLOWMANDO_PROJECT,
-    started_at: new Date().toISOString(),
-    cwd: event.cwd || process.cwd(),
-    metadata: {
-      platform: process.platform,
-      node_version: process.version,
-      hook_version: '1.0.0'
-    }
+    agent_name: 'claude-code',
+    status: 'active',
+    started_at: new Date().toISOString()
   });
 }
 
@@ -120,7 +116,7 @@ async function handlePostToolUse(event) {
   const sessionId = event.session_id || event.sessionId;
   const toolName = event.tool_name || event.toolName || event.tool;
 
-  if (!sessionId || !FLOWMANDO_PROJECT) {
+  if (!sessionId) {
     return;
   }
 
@@ -128,17 +124,20 @@ async function handlePostToolUse(event) {
   const toolInput = event.tool_input || event.input || {};
   const toolResult = event.tool_result || event.result || {};
 
+  // Extraer file_path de multiples posibles ubicaciones
+  const filePath = toolInput.file_path || toolInput.path || toolInput.notebook_path || null;
+
   await supabaseRequest('agent_events', 'POST', {
     session_id: sessionId,
-    project_slug: FLOWMANDO_PROJECT,
     event_type: 'tool_use',
     tool_name: toolName,
-    timestamp: new Date().toISOString(),
-    payload: {
-      input: sanitizePayload(toolInput),
-      result: sanitizePayload(toolResult),
-      success: !toolResult.error
-    }
+    file_path: filePath,
+    detail: sanitizePayload({
+      input_summary: toolInput,
+      success: !toolResult.error,
+      project_slug: FLOWMANDO_PROJECT
+    }),
+    timestamp: new Date().toISOString()
   });
 }
 
@@ -148,17 +147,17 @@ async function handlePostToolUse(event) {
 async function handleStop(event) {
   const sessionId = event.session_id || event.sessionId;
 
-  if (!sessionId || !FLOWMANDO_PROJECT) {
+  if (!sessionId) {
     return;
   }
 
   // Actualizar la sesión con la hora de finalización
   await supabaseRequest(
-    `agent_sessions?session_id=eq.${sessionId}`,
+    `agent_sessions?id=eq.${sessionId}`,
     'PATCH',
     {
-      stopped_at: new Date().toISOString(),
-      stop_reason: event.stop_reason || event.reason || 'normal'
+      status: 'stopped',
+      stopped_at: new Date().toISOString()
     }
   );
 }
