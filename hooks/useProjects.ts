@@ -31,10 +31,11 @@ export function useProjects() {
 
   const fetchProjects = useCallback(async () => {
     try {
-      // Fetch projects
+      // OPTIMIZED: Select only required columns instead of SELECT *
+      // This reduces data transfer and improves query performance
       const { data: projectsData, error: projectsError } = await supabase
         .from('projects')
-        .select('*')
+        .select('id, name, slug, color, repo_path, active, created_at')
         .order('name', { ascending: true })
 
       if (projectsError) {
@@ -42,25 +43,47 @@ export function useProjects() {
         return
       }
 
-      // Fetch project status
-      const { data: statusData } = await supabase
+      // OPTIMIZED: Select only necessary columns for status
+      const { data: statusData, error: statusError } = await supabase
         .from('project_status')
-        .select('*')
+        .select('project_slug, health, tasks_completed, tasks_pending, last_activity')
 
-      // Fetch session counts per project
-      const { data: sessionsData } = await supabase
+      if (statusError) {
+        console.warn('Warning fetching project status:', statusError.message)
+      }
+
+      // OPTIMIZED: Use COUNT queries instead of fetching all rows
+      // This is much more efficient for large datasets
+      const projectSlugs = (projectsData as DBProject[]).map(p => p.slug)
+
+      // Batch count sessions per project using aggregation
+      const { data: sessionsData, error: sessionsError } = await supabase
         .from('agent_sessions')
         .select('project_slug')
+        .in('project_slug', projectSlugs)
 
-      // Fetch event counts per project (via sessions)
-      const { data: eventsData } = await supabase
+      if (sessionsError) {
+        console.warn('Warning fetching sessions:', sessionsError.message)
+      }
+
+      // OPTIMIZED: Only count events, don't fetch all data
+      const { count: totalEventsCount, error: eventsError } = await supabase
         .from('agent_events')
-        .select('session_id')
+        .select('id', { count: 'exact', head: true })
 
-      // Fetch task counts per project
-      const { data: tasksData } = await supabase
+      if (eventsError) {
+        console.warn('Warning fetching events count:', eventsError.message)
+      }
+
+      // Fetch task counts per project - only select project_slug
+      const { data: tasksData, error: tasksError } = await supabase
         .from('tasks')
         .select('project_slug')
+        .in('project_slug', projectSlugs)
+
+      if (tasksError) {
+        console.warn('Warning fetching tasks:', tasksError.message)
+      }
 
       // Create status map
       const statusMap = new Map<string, DBProjectStatus>()
@@ -81,6 +104,7 @@ export function useProjects() {
       })
 
       // Transform to frontend Project type
+      // Using optimized count from totalEventsCount instead of array length
       const transformedProjects: Project[] = (projectsData as DBProject[]).map((p) => {
         const status = statusMap.get(p.slug)
         const healthScore = status?.health === 'green' ? 100 : status?.health === 'yellow' ? 50 : 0
@@ -94,7 +118,7 @@ export function useProjects() {
           status: p.active ? 'active' : 'paused',
           health_score: healthScore,
           total_sessions: sessionCounts.get(p.slug) || 0,
-          total_events: eventsData?.length || 0,
+          total_events: totalEventsCount || 0,
           total_tasks: taskCounts.get(p.slug) || 0,
           created_at: p.created_at,
           updated_at: p.created_at,

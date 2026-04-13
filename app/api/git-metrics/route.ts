@@ -144,10 +144,27 @@ async function getMetricsFromSupabase(slug: string): Promise<GitMetrics> {
   }
 
   try {
-    // Obtener metricas de git desde project_metrics
+    // OPTIMIZED: Select only required columns instead of SELECT *
+    // This follows Supabase best practices for query optimization
     const { data: metricsData, error } = await supabase
       .from('project_metrics')
-      .select('*')
+      .select(`
+        project_slug,
+        commits,
+        files,
+        lines,
+        last_commit_message,
+        last_commit_author,
+        last_commit_date,
+        last_commit_time_ago,
+        last_commit_files,
+        current_branch,
+        uncommitted_files,
+        health_status,
+        health_score,
+        last_activity_days_ago,
+        updated_at
+      `)
       .eq('project_slug', slug)
       .single()
 

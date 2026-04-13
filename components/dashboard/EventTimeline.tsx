@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, useInView } from 'framer-motion'
 import {
   Wrench,
   FileEdit,
@@ -9,7 +9,6 @@ import {
   AlertCircle,
   CheckCircle2,
   MessageSquare,
-  ChevronDown,
   ChevronRight,
   Clock,
   Inbox,
@@ -23,6 +22,12 @@ import {
 } from 'lucide-react'
 import { cn, formatRelativeTime, formatDateTime } from '@/lib/utils'
 import type { TransformedEvent } from '@/hooks/useAgentEvents'
+import {
+  springPhysics,
+  accordionVariants,
+  fadeSlideLeftVariants,
+  staggerContainerVariants,
+} from '@/lib/animations'
 
 interface EventTimelineProps {
   events: TransformedEvent[]
@@ -32,7 +37,7 @@ interface EventTimelineProps {
   onLoadMore?: () => void
 }
 
-// Iconos por tipo de evento
+// Icons by event type
 const eventIcons: Record<string, typeof Wrench> = {
   tool_use: Wrench,
   file_edit: FileEdit,
@@ -46,7 +51,7 @@ const eventIcons: Record<string, typeof Wrench> = {
   PreToolUse: Wrench,
 }
 
-// Colores por tipo de evento
+// Colors by event type
 const eventColors: Record<string, string> = {
   tool_use: 'text-accent',
   file_edit: 'text-info',
@@ -60,7 +65,7 @@ const eventColors: Record<string, string> = {
   PreToolUse: 'text-accent',
 }
 
-// Colores de fondo por tipo de evento
+// Background colors by event type
 const eventBgColors: Record<string, string> = {
   tool_use: 'bg-accent/10 border-accent/30',
   file_edit: 'bg-info/10 border-info/30',
@@ -74,7 +79,7 @@ const eventBgColors: Record<string, string> = {
   PreToolUse: 'bg-accent/10 border-accent/30',
 }
 
-// Labels legibles para tipos de eventos
+// Readable labels for event types
 const eventLabels: Record<string, string> = {
   tool_use: 'Tool Use',
   file_edit: 'Archivo Editado',
@@ -96,64 +101,82 @@ interface EventItemProps {
 
 function EventItem({ event, showProject, index }: EventItemProps) {
   const [isExpanded, setIsExpanded] = useState(false)
+  const ref = useRef(null)
+  const isInView = useInView(ref, { once: true, margin: '-50px' })
 
-  // Usar el tipo original para mejor visualizacion
   const displayType = event.original_event_type || event.event_type
   const Icon = eventIcons[displayType] || eventIcons[event.event_type] || MessageSquare
   const colorClass = eventColors[displayType] || eventColors[event.event_type] || 'text-muted'
   const bgColorClass = eventBgColors[displayType] || eventBgColors[event.event_type] || 'bg-card border-border'
 
-  // Formatear timestamp exacto
   const exactTimestamp = formatDateTime(event.created_at)
   const relativeTime = formatRelativeTime(event.created_at)
-
-  // Extraer nombre de archivo del path
   const fileName = event.file_path ? event.file_path.split(/[/\\]/).pop() : null
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: -20 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.3, delay: Math.min(index * 0.03, 0.5) }}
+      ref={ref}
+      initial="hidden"
+      animate={isInView ? "visible" : "hidden"}
+      variants={fadeSlideLeftVariants}
+      custom={index}
       className={cn(
         'relative pl-8 py-3 border-l-2 transition-colors',
         isExpanded ? 'border-accent bg-accent/5' : 'border-border hover:border-muted-foreground/50'
       )}
     >
-      {/* Indicador de linea de tiempo */}
-      <div
+      {/* Timeline dot with animation */}
+      <motion.div
         className={cn(
           'absolute left-[-5px] top-4 w-2 h-2 rounded-full transition-all',
-          isExpanded ? 'bg-accent scale-125' : 'bg-muted-foreground/50'
+          isExpanded ? 'bg-accent' : 'bg-muted-foreground/50'
         )}
+        animate={isExpanded ? { scale: 1.25 } : { scale: 1 }}
+        transition={springPhysics.bouncy}
+      />
+
+      {/* Draw line animation for timeline */}
+      <motion.div
+        className="absolute left-[-1px] top-0 w-0.5 bg-accent/30"
+        initial={{ height: 0 }}
+        animate={isInView ? { height: '100%' } : { height: 0 }}
+        transition={{ duration: 0.5, delay: index * 0.05 }}
+        style={{ display: isExpanded ? 'block' : 'none' }}
       />
 
       <div
         className="flex items-start gap-3 cursor-pointer group"
         onClick={() => setIsExpanded(!isExpanded)}
       >
-        {/* Icono del evento */}
-        <div
+        {/* Event icon with hover animation */}
+        <motion.div
           className={cn(
             'w-9 h-9 rounded-lg flex items-center justify-center border transition-all',
             bgColorClass,
             colorClass
           )}
+          whileHover={{ scale: 1.1 }}
+          transition={springPhysics.snappy}
         >
           <Icon className="w-4 h-4" />
-        </div>
+        </motion.div>
 
         <div className="flex-1 min-w-0">
-          {/* Header del evento */}
+          {/* Event header */}
           <div className="flex items-center gap-2 flex-wrap">
             <span className={cn('font-semibold', colorClass)}>
               {eventLabels[displayType] || displayType}
             </span>
 
             {event.tool_name && (
-              <span className="px-2 py-0.5 text-xs font-mono bg-card border border-border rounded">
+              <motion.span
+                className="px-2 py-0.5 text-xs font-mono bg-card border border-border rounded"
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.1 }}
+              >
                 {event.tool_name}
-              </span>
+              </motion.span>
             )}
 
             <span className="text-xs text-muted ml-auto flex items-center gap-1">
@@ -161,53 +184,68 @@ function EventItem({ event, showProject, index }: EventItemProps) {
               {relativeTime}
             </span>
 
-            <button className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-muted/20 rounded">
-              {isExpanded ? (
-                <ChevronDown className="w-4 h-4 text-muted" />
-              ) : (
-                <ChevronRight className="w-4 h-4 text-muted" />
-              )}
-            </button>
+            <motion.button
+              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-muted/20 rounded"
+              animate={{ rotate: isExpanded ? 90 : 0 }}
+              transition={springPhysics.snappy}
+            >
+              <ChevronRight className="w-4 h-4 text-muted" />
+            </motion.button>
           </div>
 
-          {/* Preview del archivo */}
+          {/* File name preview */}
           {fileName && !isExpanded && (
-            <div className="flex items-center gap-1 mt-1 text-sm text-muted">
+            <motion.div
+              className="flex items-center gap-1 mt-1 text-sm text-muted"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.1 }}
+            >
               <File className="w-3 h-3" />
               <span className="font-mono truncate">{fileName}</span>
-            </div>
+            </motion.div>
           )}
 
-          {/* Preview del mensaje */}
+          {/* Message preview */}
           {event.message && !isExpanded && !fileName && (
             <p className="text-sm text-muted truncate mt-1">{event.message}</p>
           )}
 
-          {/* Proyecto badge (colapsado) */}
+          {/* Project badge (collapsed) */}
           {showProject && event.project && !isExpanded && (
-            <div className="flex items-center gap-2 mt-1">
+            <motion.div
+              className="flex items-center gap-2 mt-1"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.15 }}
+            >
               <span
                 className="w-2 h-2 rounded-full flex-shrink-0"
                 style={{ backgroundColor: event.project.color }}
               />
               <span className="text-xs text-muted">{event.project.name}</span>
-            </div>
+            </motion.div>
           )}
         </div>
       </div>
 
-      {/* Panel expandido con detalles */}
+      {/* Expanded details panel with accordion animation */}
       <AnimatePresence>
         {isExpanded && (
           <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            variants={accordionVariants}
+            initial="collapsed"
+            animate="expanded"
+            exit="collapsed"
             className="ml-12 mt-3 overflow-hidden"
           >
-            <div className="bg-background rounded-lg p-4 border border-border space-y-3">
-              {/* Tipo de evento original */}
+            <motion.div
+              className="bg-background rounded-lg p-4 border border-border space-y-3"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+            >
+              {/* Event type */}
               <div className="flex items-center gap-2">
                 <Tag className="w-4 h-4 text-muted" />
                 <span className="text-xs text-muted">Tipo de Evento:</span>
@@ -218,18 +256,28 @@ function EventItem({ event, showProject, index }: EventItemProps) {
 
               {/* Tool name */}
               {event.tool_name && (
-                <div className="flex items-center gap-2">
+                <motion.div
+                  className="flex items-center gap-2"
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.15 }}
+                >
                   <Wrench className="w-4 h-4 text-muted" />
                   <span className="text-xs text-muted">Herramienta:</span>
                   <span className="text-sm font-mono text-foreground">
                     {event.tool_name}
                   </span>
-                </div>
+                </motion.div>
               )}
 
-              {/* File path completo */}
+              {/* Full file path */}
               {event.file_path && (
-                <div className="flex items-start gap-2">
+                <motion.div
+                  className="flex items-start gap-2"
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.2 }}
+                >
                   <FolderOpen className="w-4 h-4 text-muted mt-0.5" />
                   <div className="flex-1 min-w-0">
                     <span className="text-xs text-muted block">Ruta Completa:</span>
@@ -237,10 +285,10 @@ function EventItem({ event, showProject, index }: EventItemProps) {
                       {event.file_path}
                     </p>
                   </div>
-                </div>
+                </motion.div>
               )}
 
-              {/* Timestamp exacto */}
+              {/* Exact timestamp */}
               <div className="flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-muted" />
                 <span className="text-xs text-muted">Timestamp:</span>
@@ -250,9 +298,14 @@ function EventItem({ event, showProject, index }: EventItemProps) {
                 <span className="text-xs text-muted">({relativeTime})</span>
               </div>
 
-              {/* Proyecto con color */}
+              {/* Project with color */}
               {showProject && event.project && (
-                <div className="flex items-center gap-2">
+                <motion.div
+                  className="flex items-center gap-2"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.25 }}
+                >
                   <div
                     className="w-4 h-4 rounded flex-shrink-0"
                     style={{ backgroundColor: event.project.color }}
@@ -264,10 +317,10 @@ function EventItem({ event, showProject, index }: EventItemProps) {
                   <span className="text-xs text-muted font-mono">
                     ({event.project.slug})
                   </span>
-                </div>
+                </motion.div>
               )}
 
-              {/* Mensaje */}
+              {/* Message */}
               {event.message && (
                 <div>
                   <span className="text-xs text-muted block mb-1">Mensaje:</span>
@@ -279,12 +332,16 @@ function EventItem({ event, showProject, index }: EventItemProps) {
 
               {/* Metadata */}
               {event.metadata && Object.keys(event.metadata).length > 0 && (
-                <div>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.3 }}
+                >
                   <span className="text-xs text-muted block mb-1">Metadata / Detalles:</span>
                   <pre className="text-xs font-mono text-muted bg-card p-3 rounded border border-border overflow-x-auto max-h-48 overflow-y-auto">
                     {JSON.stringify(event.metadata, null, 2)}
                   </pre>
-                </div>
+                </motion.div>
               )}
 
               {/* Session ID */}
@@ -296,7 +353,7 @@ function EventItem({ event, showProject, index }: EventItemProps) {
                   </span>
                 </div>
               )}
-            </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -304,7 +361,7 @@ function EventItem({ event, showProject, index }: EventItemProps) {
   )
 }
 
-// Componente de empty state mejorado
+// Empty state component
 function EmptyState() {
   return (
     <motion.div
@@ -313,7 +370,7 @@ function EmptyState() {
       transition={{ duration: 0.5 }}
       className="flex flex-col items-center justify-center py-16"
     >
-      {/* Icono animado */}
+      {/* Animated icon */}
       <div className="relative mb-6">
         <motion.div
           className="absolute inset-0 rounded-full bg-accent/10"
@@ -333,7 +390,7 @@ function EmptyState() {
         </div>
       </div>
 
-      {/* Texto */}
+      {/* Text */}
       <motion.h3
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -352,7 +409,7 @@ function EmptyState() {
         Los eventos de los agentes apareceran aqui cuando empiecen a trabajar en tus proyectos.
       </motion.p>
 
-      {/* Indicador */}
+      {/* Indicator */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -363,7 +420,7 @@ function EmptyState() {
         <span>Se actualiza automaticamente</span>
       </motion.div>
 
-      {/* Dots animados */}
+      {/* Animated dots */}
       <motion.div
         className="flex gap-1.5 mt-6"
         initial={{ opacity: 0 }}
@@ -390,8 +447,16 @@ function EmptyState() {
   )
 }
 
-// Componente de loading para cargar mas
-function LoadMoreIndicator({ loading, hasMore, onLoadMore }: { loading: boolean; hasMore: boolean; onLoadMore?: () => void }) {
+// Load more indicator
+function LoadMoreIndicator({
+  loading,
+  hasMore,
+  onLoadMore
+}: {
+  loading: boolean
+  hasMore: boolean
+  onLoadMore?: () => void
+}) {
   const observerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -418,17 +483,28 @@ function LoadMoreIndicator({ loading, hasMore, onLoadMore }: { loading: boolean;
   return (
     <div ref={observerRef} className="flex items-center justify-center py-6">
       {loading ? (
-        <div className="flex items-center gap-2 text-muted">
-          <Loader2 className="w-5 h-5 animate-spin" />
+        <motion.div
+          className="flex items-center gap-2 text-muted"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+        >
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+          >
+            <Loader2 className="w-5 h-5" />
+          </motion.div>
           <span className="text-sm">Cargando mas eventos...</span>
-        </div>
+        </motion.div>
       ) : hasMore ? (
-        <button
+        <motion.button
           onClick={onLoadMore}
           className="px-4 py-2 text-sm text-muted hover:text-foreground transition-colors"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
         >
           Cargar mas eventos
-        </button>
+        </motion.button>
       ) : null}
     </div>
   )
@@ -446,7 +522,12 @@ export function EventTimeline({
   }
 
   return (
-    <div className="space-y-0">
+    <motion.div
+      className="space-y-0"
+      variants={staggerContainerVariants}
+      initial="hidden"
+      animate="visible"
+    >
       {events.map((event, index) => (
         <EventItem
           key={event.id}
@@ -461,6 +542,6 @@ export function EventTimeline({
         hasMore={hasMore}
         onLoadMore={onLoadMore}
       />
-    </div>
+    </motion.div>
   )
 }

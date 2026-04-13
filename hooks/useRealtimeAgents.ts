@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useCallback, useRef } from 'react'
+import { useEffect, useCallback, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useDashboardStore } from '@/stores/dashboard-store'
 import type { AgentSession, AgentEvent } from '@/types/database'
@@ -9,6 +9,7 @@ import type { AgentSession, AgentEvent } from '@/types/database'
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000
 
 export function useRealtimeAgents() {
+  const [isLoading, setIsLoading] = useState(true)
   const {
     activeSessions,
     setActiveSessions,
@@ -44,36 +45,41 @@ export function useRealtimeAgents() {
   }, [])
 
   const fetchActiveSessions = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('agent_sessions')
-      .select('*, project:projects(*)')
-      .in('status', ['running', 'idle', 'active'])
-      .order('started_at', { ascending: false })
+    setIsLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('agent_sessions')
+        .select('*, project:projects(*)')
+        .in('status', ['running', 'idle', 'active'])
+        .order('started_at', { ascending: false })
 
-    if (error) {
-      console.error('Error fetching sessions:', error)
-      return
-    }
+      if (error) {
+        console.error('Error fetching sessions:', error)
+        return
+      }
 
-    // If events_count is missing/null, fetch actual count from agent_events
-    const sessionsWithCounts = await Promise.all(
-      (data || []).map(async (session) => {
-        if (session.events_count == null || session.events_count === 0) {
-          const { count } = await supabase
-            .from('agent_events')
-            .select('*', { count: 'exact', head: true })
-            .eq('session_id', session.id)
+      // If events_count is missing/null, fetch actual count from agent_events
+      const sessionsWithCounts = await Promise.all(
+        (data || []).map(async (session) => {
+          if (session.events_count == null || session.events_count === 0) {
+            const { count } = await supabase
+              .from('agent_events')
+              .select('*', { count: 'exact', head: true })
+              .eq('session_id', session.id)
 
-          return {
-            ...session,
-            events_count: count || 0
+            return {
+              ...session,
+              events_count: count || 0
+            }
           }
-        }
-        return session
-      })
-    )
+          return session
+        })
+      )
 
-    setActiveSessions(sessionsWithCounts as AgentSession[])
+      setActiveSessions(sessionsWithCounts as AgentSession[])
+    } finally {
+      setIsLoading(false)
+    }
   }, [setActiveSessions])
 
   useEffect(() => {
@@ -172,5 +178,6 @@ export function useRealtimeAgents() {
   return {
     activeSessions,
     refetch: fetchActiveSessions,
+    isLoading,
   }
 }

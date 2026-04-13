@@ -29,7 +29,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#0a0a0a' }}>
+    <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#111111' }}>
       {/* Background gradient effect */}
       <div className="absolute inset-0 overflow-hidden">
         <div
@@ -57,7 +57,7 @@ export default function LoginPage() {
           >
             RYNO
           </h1>
-          <p className="text-gray-500 text-sm tracking-widest uppercase">
+          <p className="text-muted text-sm tracking-widest uppercase">
             Control Center
           </p>
         </motion.div>
@@ -69,8 +69,8 @@ export default function LoginPage() {
           transition={{ duration: 0.5, delay: 0.2 }}
           className="rounded-2xl p-8"
           style={{
-            backgroundColor: '#111111',
-            border: '1px solid rgba(255, 255, 255, 0.06)',
+            backgroundColor: '#1a1a1a',
+            border: '1px solid #2a2a2a',
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
           }}
         >
@@ -79,7 +79,7 @@ export default function LoginPage() {
             <div className="space-y-2">
               <label
                 htmlFor="username"
-                className="block text-sm font-medium text-gray-400"
+                className="block text-sm font-medium text-muted"
               >
                 Usuario
               </label>
@@ -88,17 +88,17 @@ export default function LoginPage() {
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl text-white placeholder-gray-600 transition-all duration-200 focus:outline-none focus:ring-2"
+                className="w-full px-4 py-3 rounded-xl text-white placeholder-muted transition-all duration-200 focus:outline-none focus:ring-2"
                 style={{
-                  backgroundColor: '#0a0a0a',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  backgroundColor: '#111111',
+                  border: '1px solid #2a2a2a',
                 }}
                 onFocus={(e) => {
                   e.target.style.borderColor = '#FF6B35'
                   e.target.style.boxShadow = '0 0 0 3px rgba(255, 107, 53, 0.15)'
                 }}
                 onBlur={(e) => {
-                  e.target.style.borderColor = 'rgba(255, 255, 255, 0.08)'
+                  e.target.style.borderColor = '#2a2a2a'
                   e.target.style.boxShadow = 'none'
                 }}
                 placeholder="Ingresa tu usuario"
@@ -111,7 +111,7 @@ export default function LoginPage() {
             <div className="space-y-2">
               <label
                 htmlFor="password"
-                className="block text-sm font-medium text-gray-400"
+                className="block text-sm font-medium text-muted"
               >
                 Contrasena
               </label>
@@ -120,17 +120,17 @@ export default function LoginPage() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl text-white placeholder-gray-600 transition-all duration-200 focus:outline-none focus:ring-2"
+                className="w-full px-4 py-3 rounded-xl text-white placeholder-muted transition-all duration-200 focus:outline-none focus:ring-2"
                 style={{
-                  backgroundColor: '#0a0a0a',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  backgroundColor: '#111111',
+                  border: '1px solid #2a2a2a',
                 }}
                 onFocus={(e) => {
                   e.target.style.borderColor = '#FF6B35'
                   e.target.style.boxShadow = '0 0 0 3px rgba(255, 107, 53, 0.15)'
                 }}
                 onBlur={(e) => {
-                  e.target.style.borderColor = 'rgba(255, 255, 255, 0.08)'
+                  e.target.style.borderColor = '#2a2a2a'
                   e.target.style.boxShadow = 'none'
                 }}
                 placeholder="Ingresa tu contrasena"
@@ -165,7 +165,7 @@ export default function LoginPage() {
               }}
               onMouseEnter={(e) => {
                 if (!isLoading) {
-                  e.currentTarget.style.backgroundColor = '#e55a2b'
+                  e.currentTarget.style.backgroundColor = '#ff8554'
                 }
               }}
               onMouseLeave={(e) => {
@@ -189,7 +189,7 @@ export default function LoginPage() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.4 }}
-          className="text-center mt-8 text-gray-600 text-xs"
+          className="text-center mt-8 text-muted text-xs"
         >
           Sistema de monitoreo RYNO v1.0
         </motion.p>

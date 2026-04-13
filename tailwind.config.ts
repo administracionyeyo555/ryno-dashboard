@@ -9,14 +9,14 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "#0a0a0a",
+        background: "#111111",
         foreground: "#ededed",
-        card: "#111111",
-        "card-hover": "#161616",
-        border: "#1a1a1a",
-        "border-hover": "#252525",
+        card: "#1a1a1a",
+        "card-hover": "#222222",
+        border: "#2a2a2a",
+        "border-hover": "#3a3a3a",
         accent: "#FF6B35",
-        "accent-hover": "#FF8555",
+        "accent-hover": "#ff8554",
         "accent-muted": "rgba(255, 107, 53, 0.1)",
         muted: "#888888",
         success: "#22c55e",
@@ -25,8 +25,8 @@ const config: Config = {
         info: "#3b82f6",
       },
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
-        mono: ["JetBrains Mono", "monospace"],
+        sans: ["var(--font-sans)", "Geist", "system-ui", "sans-serif"],
+        mono: ["var(--font-mono)", "Geist Mono", "monospace"],
       },
       animation: {
         "pulse-slow": "pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",

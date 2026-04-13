@@ -1,19 +1,27 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --background: #0a0a0a;
+  /* Paleta principal */
+  --background: #111111;
   --foreground: #ededed;
-  --card: #111111;
-  --card-hover: #161616;
-  --border: #1a1a1a;
-  --border-hover: #252525;
+
+  /* Cards */
+  --card: #1a1a1a;
+  --card-hover: #222222;
+
+  /* Borders */
+  --border: #2a2a2a;
+  --border-hover: #3a3a3a;
+
+  /* Acento RYNO */
   --accent: #FF6B35;
-  --accent-hover: #FF8555;
+  --accent-hover: #ff8554;
   --accent-muted: rgba(255, 107, 53, 0.1);
+  --accent-shadow: rgba(255, 107, 53, 0.1);
+
+  /* Colores semanticos */
   --muted: #888888;
   --success: #22c55e;
   --warning: #eab308;
@@ -33,26 +41,57 @@ body {
   overflow-x: hidden;
   background: var(--background);
   color: var(--foreground);
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-sans), 'Inter', system-ui, sans-serif;
+  font-feature-settings: "liga" 1, "calt" 1, "kern" 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-/* Custom Scrollbar */
+/* Noise Texture Overlay - Subtle depth */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 9998;
+  opacity: 0.02;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+/* Custom Scrollbar - Minimalista */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--background);
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--border);
+  background: #1a1a1a;
   border-radius: 4px;
 }
 
+::-webkit-scrollbar-thumb {
+  background: #2a2a2a;
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
 ::-webkit-scrollbar-thumb:hover {
-  background: #252525;
+  background: #3a3a3a;
+}
+
+::-webkit-scrollbar-corner {
+  background: #1a1a1a;
+}
+
+/* Firefox Scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2a2a2a #1a1a1a;
 }
 
 /* Selection */
@@ -67,6 +106,18 @@ body {
   outline-offset: 2px;
 }
 
+/* Global Transitions for ALL Interactive Elements */
+a,
+button,
+input,
+select,
+textarea,
+[role="button"],
+[tabindex]:not([tabindex="-1"]),
+.interactive {
+  transition: all 0.2s ease;
+}
+
 /* Card styles */
 @layer components {
   .card {
@@ -75,6 +126,30 @@ body {
 
   .card:hover {
     @apply border-border-hover bg-card-hover;
+  }
+
+  /* Active card with orange shadow */
+  .card-active,
+  .card.active,
+  .card[data-active="true"] {
+    box-shadow: 0 4px 20px rgba(255, 107, 53, 0.1);
+    border-color: rgba(255, 107, 53, 0.3);
+  }
+
+  /* Agent active cards with orange glow */
+  .agent-card-active,
+  .agent-card.running,
+  .agent-card[data-status="running"] {
+    box-shadow: 0 4px 24px rgba(255, 107, 53, 0.12), 0 2px 8px rgba(255, 107, 53, 0.08);
+    border-color: rgba(255, 107, 53, 0.25);
+  }
+
+  /* Project selected cards with orange shadow */
+  .project-card-selected,
+  .project-card.selected,
+  .project-card[data-selected="true"] {
+    box-shadow: 0 4px 20px rgba(255, 107, 53, 0.1);
+    border-color: rgba(255, 107, 53, 0.3);
   }
 
   .card-header {
@@ -86,7 +161,7 @@ body {
   }
 
   .badge {
-    @apply inline-flex items-center px-2 py-1 text-xs font-medium rounded-full;
+    @apply inline-flex items-center px-2 py-1 text-xs font-medium rounded-full transition-all duration-200;
   }
 
   .badge-success {
@@ -109,8 +184,19 @@ body {
     @apply bg-accent/10 text-accent;
   }
 
+  /* Buttons with micro-interactions */
   .btn {
-    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ease-out transform-gpu focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+  }
+
+  /* Button micro-interactions: scale 0.97 on press, spring animation on release */
+  .btn:active {
+    @apply scale-[0.97];
+    transition-duration: 75ms;
+  }
+
+  .btn:hover:not(:active) {
+    @apply scale-[1.02];
   }
 
   .btn-primary {
@@ -122,20 +208,27 @@ body {
   }
 
   .input {
-    @apply w-full px-3 py-2 bg-card border border-border rounded-lg text-foreground placeholder-muted focus:outline-none focus:border-accent transition-colors;
+    @apply w-full px-3 py-2 bg-card border border-border rounded-lg text-foreground placeholder-muted focus:outline-none focus:border-accent transition-all duration-200;
   }
 
   .nav-item {
-    @apply flex items-center gap-3 px-4 py-3 text-muted hover:text-foreground hover:bg-card rounded-lg transition-all duration-200 cursor-pointer relative;
+    @apply flex items-center gap-3 px-4 py-3 text-muted hover:text-foreground hover:bg-card rounded-lg transition-all duration-200 cursor-pointer relative transform-gpu;
+  }
+
+  /* Nav item micro-interaction */
+  .nav-item:active {
+    @apply scale-[0.98];
+    transition-duration: 75ms;
   }
 
   .nav-item.active {
     @apply text-accent bg-accent-muted;
+    box-shadow: 0 2px 12px rgba(255, 107, 53, 0.08);
   }
 
   /* Status indicators */
   .status-dot {
-    @apply w-2 h-2 rounded-full;
+    @apply w-2 h-2 rounded-full transition-all duration-200;
   }
 
   .status-running {
@@ -156,12 +249,16 @@ body {
 
   /* Tool tag */
   .tool-tag {
-    @apply inline-flex items-center gap-1 px-2 py-1 bg-accent/10 text-accent text-xs font-mono rounded;
+    @apply inline-flex items-center gap-1 px-2 py-1 bg-accent/10 text-accent text-xs font-mono rounded transition-all duration-200;
+  }
+
+  .tool-tag:hover {
+    @apply bg-accent/20;
   }
 
   /* Timeline */
   .timeline-item {
-    @apply relative pl-6 pb-4 border-l border-border;
+    @apply relative pl-6 pb-4 border-l border-border transition-all duration-200;
   }
 
   .timeline-item:last-child {
@@ -170,29 +267,46 @@ body {
 
   .timeline-item::before {
     content: '';
-    @apply absolute left-0 top-0 w-3 h-3 -translate-x-1/2 rounded-full bg-border;
+    @apply absolute left-0 top-0 w-3 h-3 -translate-x-1/2 rounded-full bg-border transition-all duration-200;
   }
 
   .timeline-item.active::before {
     @apply bg-accent;
+    box-shadow: 0 0 12px rgba(255, 107, 53, 0.4);
   }
 
   /* Kanban */
   .kanban-column {
-    @apply flex-1 min-w-[300px] max-w-[400px] bg-card/50 rounded-xl p-4;
+    @apply flex-1 min-w-[300px] max-w-[400px] bg-card/50 rounded-xl p-4 transition-all duration-200;
   }
 
   .kanban-card {
-    @apply bg-card border border-border rounded-lg p-3 mb-2 cursor-grab transition-all duration-200 hover:border-border-hover relative;
+    @apply bg-card border border-border rounded-lg p-3 mb-2 cursor-grab transition-all duration-200 hover:border-border-hover relative transform-gpu;
+  }
+
+  .kanban-card:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
   }
 
   .kanban-card:active {
-    @apply cursor-grabbing;
+    @apply cursor-grabbing scale-[1.02];
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  }
+
+  .kanban-card.dragging,
+  .kanban-card[data-dragging="true"] {
+    box-shadow: 0 8px 32px rgba(255, 107, 53, 0.15);
+    border-color: rgba(255, 107, 53, 0.3);
   }
 
   /* Animations */
   .animate-in {
     animation: fadeIn 0.3s ease-in-out, slideIn 0.3s ease-out;
+  }
+
+  /* Interactive elements hover glow */
+  .interactive-glow:hover {
+    box-shadow: 0 0 20px rgba(255, 107, 53, 0.08);
   }
 }
 
@@ -216,6 +330,22 @@ body {
   }
 }
 
+/* Spring animation keyframe for button release */
+@keyframes springRelease {
+  0% {
+    transform: scale(0.97);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+  75% {
+    transform: scale(0.99);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
 /* Framer Motion overrides */
 [data-framer-portal] {
   z-index: 9999;
@@ -231,4 +361,189 @@ body {
   .sidebar.open {
     transform: translateX(0);
   }
+}
+
+/* Utility classes for orange shadows */
+.shadow-accent-sm {
+  box-shadow: 0 2px 8px rgba(255, 107, 53, 0.08);
+}
+
+.shadow-accent {
+  box-shadow: 0 4px 20px rgba(255, 107, 53, 0.1);
+}
+
+.shadow-accent-lg {
+  box-shadow: 0 8px 32px rgba(255, 107, 53, 0.15);
+}
+
+/* Hover transition utilities */
+.hover-lift {
+  @apply transition-transform duration-200 ease-out;
+}
+
+.hover-lift:hover {
+  @apply -translate-y-0.5;
+}
+
+/* Smooth color transitions for all states */
+.smooth-colors {
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* ============================================
+   WORLD-CLASS ANIMATION KEYFRAMES
+   ============================================ */
+
+/* Glitch effect for logo */
+@keyframes glitch {
+  0% { transform: translate(0); }
+  20% { transform: translate(-2px, 2px); }
+  40% { transform: translate(-2px, -2px); }
+  60% { transform: translate(2px, 2px); }
+  80% { transform: translate(2px, -2px); }
+  100% { transform: translate(0); }
+}
+
+@keyframes glitch-skew {
+  0% { transform: skew(0deg); }
+  10% { transform: skew(2deg); }
+  20% { transform: skew(-2deg); }
+  30% { transform: skew(1deg); }
+  40% { transform: skew(-1deg); }
+  50% { transform: skew(0deg); }
+  100% { transform: skew(0deg); }
+}
+
+/* Shimmer effect for skeleton loading */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Pulse glow for active elements */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(255, 107, 53, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(255, 107, 53, 0);
+  }
+}
+
+/* Breathing animation for status indicators */
+@keyframes breathing {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+}
+
+/* Border pulse animation */
+@keyframes border-pulse {
+  0%, 100% {
+    border-color: rgba(255, 107, 53, 0.3);
+    box-shadow: inset 0 0 0 1px rgba(255, 107, 53, 0.2);
+  }
+  50% {
+    border-color: rgba(255, 107, 53, 0.8);
+    box-shadow: inset 0 0 0 2px rgba(255, 107, 53, 0.5);
+  }
+}
+
+/* Draw line animation for timeline */
+@keyframes draw-line {
+  from {
+    stroke-dashoffset: 1000;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Float animation for empty states */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* Flip animation for counters */
+@keyframes flip-in {
+  0% {
+    transform: rotateX(-90deg);
+    opacity: 0;
+  }
+  100% {
+    transform: rotateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes flip-out {
+  0% {
+    transform: rotateX(0);
+    opacity: 1;
+  }
+  100% {
+    transform: rotateX(90deg);
+    opacity: 0;
+  }
+}
+
+/* Utility classes for animations */
+.animate-glitch {
+  animation: glitch 0.3s ease-in-out;
+}
+
+.animate-shimmer {
+  animation: shimmer 1.5s infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s infinite;
+}
+
+.animate-breathing {
+  animation: breathing 3s ease-in-out infinite;
+}
+
+.animate-border-pulse {
+  animation: border-pulse 2s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-flip-in {
+  animation: flip-in 0.3s ease-out forwards;
+}
+
+/* Lenis smooth scroll styles */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+.lenis.lenis-scrolling iframe {
+  pointer-events: none;
 }

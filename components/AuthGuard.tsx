@@ -44,14 +44,14 @@ export function AuthGuard({ children }: AuthGuardProps) {
     return (
       <div
         className="min-h-screen flex items-center justify-center"
-        style={{ backgroundColor: '#0a0a0a' }}
+        style={{ backgroundColor: '#111111' }}
       >
         <div className="flex flex-col items-center gap-4">
           <Loader2
             className="w-10 h-10 animate-spin"
             style={{ color: '#FF6B35' }}
           />
-          <p className="text-gray-500 text-sm">Verificando sesion...</p>
+          <p className="text-muted text-sm">Verificando sesion...</p>
         </div>
       </div>
     )
