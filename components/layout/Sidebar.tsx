@@ -140,7 +140,7 @@ export function Sidebar() {
       initial={false}
       animate={{ width: isSidebarCollapsed ? 80 : 260 }}
       transition={{ duration: 0.3, ease: 'easeInOut' }}
-      className="fixed left-0 top-0 h-screen bg-card border-r border-border flex flex-col z-50"
+      className="hidden md:flex fixed left-0 top-0 h-screen bg-card border-r border-border flex-col z-50"
     >
       {/* Logo */}
       <div className="h-16 flex items-center justify-between px-4 border-b border-border">

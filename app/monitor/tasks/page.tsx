@@ -27,7 +27,6 @@ const columns: { id: TaskStatus; title: string; color: string }[] = [
   { id: 'done', title: 'Completado', color: '#22c55e' },
 ]
 
-// Interfaz para la tarea creada con el prompt
 interface CreatedTaskInfo {
   title: string
   description: string | null
@@ -35,7 +34,6 @@ interface CreatedTaskInfo {
   priority: TaskPriority
 }
 
-// Genera el prompt para Claude Code
 function generateClaudePrompt(task: CreatedTaskInfo): string {
   const priorityLabels: Record<TaskPriority, string> = {
     low: 'Baja',
@@ -55,7 +53,6 @@ ${task.description || 'Sin descripcion adicional.'}
 Cuando termines, marca la tarea como completada.`
 }
 
-// Modal para crear nueva tarea
 function CreateTaskModal({
   isOpen,
   onClose,
@@ -74,8 +71,6 @@ function CreateTaskModal({
   const [assignedTo, setAssignedTo] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  // Estado para mostrar el prompt despues de crear
   const [createdTask, setCreatedTask] = useState<CreatedTaskInfo | null>(null)
   const [copied, setCopied] = useState(false)
 
@@ -99,7 +94,6 @@ function CreateTaskModal({
         created_by: 'human',
       })
 
-      // Guardar info de la tarea creada para mostrar el prompt
       setCreatedTask({
         title: title.trim(),
         description: description.trim() || null,
@@ -116,7 +110,6 @@ function CreateTaskModal({
 
   const handleCopyPrompt = async () => {
     if (!createdTask) return
-
     const prompt = generateClaudePrompt(createdTask)
     try {
       await navigator.clipboard.writeText(prompt)
@@ -149,7 +142,6 @@ function CreateTaskModal({
     onClose()
   }
 
-  // Reset form when modal opens
   useEffect(() => {
     if (isOpen) {
       setTitle('')
@@ -170,17 +162,22 @@ function CreateTaskModal({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
       onClick={handleClose}
     >
       <motion.div
-        initial={{ scale: 0.95, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.95, opacity: 0 }}
-        className="bg-card border border-border rounded-xl shadow-xl w-full max-w-md"
+        initial={{ y: '100%', opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: '100%', opacity: 0 }}
+        transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+        className="bg-card border border-border rounded-t-2xl sm:rounded-xl shadow-xl w-full sm:max-w-md max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Vista del prompt despues de crear */}
+        {/* Handle para mobile */}
+        <div className="flex justify-center pt-3 pb-1 sm:hidden">
+          <div className="w-10 h-1 rounded-full bg-border" />
+        </div>
+
         {createdTask ? (
           <>
             <div className="flex items-center justify-between p-4 border-b border-border">
@@ -189,6 +186,8 @@ function CreateTaskModal({
                 Tarea Creada
               </h2>
               <button
+                type="button"
+                aria-label="Cerrar modal"
                 onClick={handleClose}
                 className="p-1 hover:bg-background rounded-lg transition-colors"
               >
@@ -198,7 +197,7 @@ function CreateTaskModal({
 
             <div className="p-4 space-y-4">
               <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-green-400 text-sm">
-                La tarea &ldquo;{createdTask.title}&rdquo; ha sido creada exitosamente.
+                La tarea &ldquo;{createdTask.title}&rdquo; fue creada exitosamente.
               </div>
 
               <div>
@@ -206,16 +205,18 @@ function CreateTaskModal({
                   Prompt para Claude Code
                 </label>
                 <p className="text-xs text-muted mb-2">
-                  Copia este prompt y pegalo en Claude Code para trabajar en la tarea:
+                  Copia este prompt y pegalo en Claude Code:
                 </p>
                 <div className="relative">
                   <textarea
                     readOnly
+                    aria-label="Prompt para Claude Code"
                     value={generateClaudePrompt(createdTask)}
                     className="input w-full resize-none font-mono text-sm bg-background"
                     rows={8}
                   />
                   <button
+                    type="button"
                     onClick={handleCopyPrompt}
                     className={`absolute top-2 right-2 p-2 rounded-lg transition-all ${
                       copied
@@ -224,16 +225,12 @@ function CreateTaskModal({
                     }`}
                     title={copied ? 'Copiado!' : 'Copiar prompt'}
                   >
-                    {copied ? (
-                      <Check className="w-4 h-4" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
+                    {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
 
-              <div className="flex justify-between gap-3 pt-4 border-t border-border">
+              <div className="flex justify-between gap-3 pt-4 border-t border-border pb-safe">
                 <button
                   type="button"
                   onClick={handleCreateAnother}
@@ -242,18 +239,13 @@ function CreateTaskModal({
                   <ArrowLeft className="w-4 h-4" />
                   Crear Otra
                 </button>
-                <button
-                  type="button"
-                  onClick={handleClose}
-                  className="btn btn-primary"
-                >
+                <button type="button" onClick={handleClose} className="btn btn-primary">
                   Cerrar
                 </button>
               </div>
             </div>
           </>
         ) : (
-          /* Formulario de creacion */
           <>
             <div className="flex items-center justify-between p-4 border-b border-border">
               <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
@@ -261,6 +253,8 @@ function CreateTaskModal({
                 Nueva Tarea
               </h2>
               <button
+                type="button"
+                aria-label="Cerrar modal"
                 onClick={handleClose}
                 className="p-1 hover:bg-background rounded-lg transition-colors"
               >
@@ -275,7 +269,6 @@ function CreateTaskModal({
                 </div>
               )}
 
-              {/* Titulo */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">
                   Titulo <span className="text-error">*</span>
@@ -291,7 +284,6 @@ function CreateTaskModal({
                 />
               </div>
 
-              {/* Descripcion */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">
                   Descripcion
@@ -299,18 +291,18 @@ function CreateTaskModal({
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Descripcion opcional de la tarea"
+                  placeholder="Descripcion opcional"
                   rows={3}
                   className="input w-full resize-none"
                 />
               </div>
 
-              {/* Proyecto */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">
                   Proyecto
                 </label>
                 <select
+                  aria-label="Seleccionar proyecto"
                   value={projectSlug}
                   onChange={(e) => setProjectSlug(e.target.value)}
                   className="input w-full"
@@ -324,12 +316,12 @@ function CreateTaskModal({
                 </select>
               </div>
 
-              {/* Prioridad */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">
                   Prioridad
                 </label>
                 <select
+                  aria-label="Seleccionar prioridad"
                   value={priority}
                   onChange={(e) => setPriority(e.target.value as TaskPriority)}
                   className="input w-full"
@@ -341,7 +333,6 @@ function CreateTaskModal({
                 </select>
               </div>
 
-              {/* Asignado a */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">
                   Asignado a
@@ -355,8 +346,7 @@ function CreateTaskModal({
                 />
               </div>
 
-              {/* Botones */}
-              <div className="flex justify-end gap-3 pt-4 border-t border-border">
+              <div className="flex justify-end gap-3 pt-4 border-t border-border pb-safe">
                 <button
                   type="button"
                   onClick={handleClose}
@@ -391,28 +381,19 @@ function CreateTaskModal({
   )
 }
 
-// Componente de empty state mejorado
 function EmptyTasksState({ onCreateClick }: { onCreateClick: () => void }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="flex flex-col items-center justify-center py-20"
+      className="flex flex-col items-center justify-center py-16 px-4"
     >
-      {/* Icono animado */}
       <div className="relative mb-8">
         <motion.div
           className="absolute inset-0 rounded-full bg-accent/10"
-          animate={{
-            scale: [1, 1.3, 1],
-            opacity: [0.3, 0.1, 0.3],
-          }}
-          transition={{
-            duration: 2.5,
-            repeat: Infinity,
-            ease: 'easeInOut',
-          }}
+          animate={{ scale: [1, 1.3, 1], opacity: [0.3, 0.1, 0.3] }}
+          transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
           style={{ width: 100, height: 100 }}
         />
         <div className="relative w-[100px] h-[100px] rounded-full bg-card border-2 border-border flex items-center justify-center">
@@ -420,29 +401,27 @@ function EmptyTasksState({ onCreateClick }: { onCreateClick: () => void }) {
         </div>
       </div>
 
-      {/* Texto principal */}
       <motion.h3
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.2 }}
-        className="text-xl font-semibold text-foreground mb-3"
+        className="text-xl font-semibold text-foreground mb-3 text-center"
       >
         Sin tareas
       </motion.h3>
 
-      {/* Subtexto */}
       <motion.p
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.3 }}
-        className="text-muted text-center max-w-md mb-6"
+        className="text-muted text-center max-w-sm mb-6 text-sm"
       >
-        Crea una nueva tarea para empezar a organizar el trabajo de tus proyectos.
-        Las tareas se sincronizan automaticamente con tus agentes.
+        Crea una nueva tarea para organizar el trabajo.
+        Las tareas se sincronizan con tus agentes.
       </motion.p>
 
-      {/* Boton de accion */}
       <motion.button
+        type="button"
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4 }}
@@ -453,7 +432,6 @@ function EmptyTasksState({ onCreateClick }: { onCreateClick: () => void }) {
         Crear Primera Tarea
       </motion.button>
 
-      {/* Indicador */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -467,23 +445,12 @@ function EmptyTasksState({ onCreateClick }: { onCreateClick: () => void }) {
   )
 }
 
-// Componente de empty state para columna individual
 function EmptyColumnState({ status }: { status: TaskStatus }) {
   const config = {
-    pending: {
-      message: 'Arrastra tareas aqui o crea una nueva',
-      icon: Inbox,
-    },
-    in_progress: {
-      message: 'Arrastra tareas para iniciar',
-      icon: Clock,
-    },
-    done: {
-      message: 'Las tareas completadas apareceran aqui',
-      icon: CheckSquare,
-    },
+    pending: { message: 'Arrastra tareas aqui o crea una nueva', icon: Inbox },
+    in_progress: { message: 'Arrastra tareas para iniciar', icon: Clock },
+    done: { message: 'Las tareas completadas apareceran aqui', icon: CheckSquare },
   }
-
   const { message, icon: Icon } = config[status]
 
   return (
@@ -507,28 +474,23 @@ export default function TasksPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [projects, setProjects] = useState<ProjectDB[]>([])
   const [selectedProject, setSelectedProject] = useState<string>('all')
+  // Mobile: columna activa en la vista de tabs
+  const [mobileActiveColumn, setMobileActiveColumn] = useState<TaskStatus>('pending')
 
-  // Fetch tasks from Supabase
   const fetchTasks = useCallback(async () => {
     setIsLoading(true)
     try {
-      // Intentar con relacion primero
       const { data, error } = await supabase
         .from('tasks')
         .select('*, project:projects!tasks_project_slug_fkey(*)')
         .order('created_at', { ascending: false })
 
       if (error) {
-        console.error('Error fetching tasks with relation:', error)
-        // Fallback: try without relation
         const { data: tasksOnly, error: tasksError } = await supabase
           .from('tasks')
           .select('*')
           .order('created_at', { ascending: false })
-
-        if (!tasksError && tasksOnly) {
-          setTasks(tasksOnly as Task[])
-        }
+        if (!tasksError && tasksOnly) setTasks(tasksOnly as Task[])
       } else if (data) {
         setTasks(data as Task[])
       }
@@ -539,7 +501,6 @@ export default function TasksPage() {
     }
   }, [setTasks])
 
-  // Fetch projects from Supabase
   const fetchProjects = useCallback(async () => {
     try {
       const { data, error } = await supabase
@@ -547,78 +508,49 @@ export default function TasksPage() {
         .select('*')
         .eq('active', true)
         .order('name')
-
-      if (!error && data) {
-        setProjects(data as ProjectDB[])
-      }
+      if (!error && data) setProjects(data as ProjectDB[])
     } catch (err) {
       console.error('Error fetching projects:', err)
     }
   }, [])
 
-  // Initial data fetch
   useEffect(() => {
     fetchTasks()
     fetchProjects()
   }, [fetchTasks, fetchProjects])
 
-  // Real-time subscription to tasks table
   useEffect(() => {
     const subscription = supabase
       .channel('tasks-realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'tasks'
-        },
-        (payload) => {
-          console.log('Realtime update:', payload)
-          // Refetch all tasks to get relations properly
-          fetchTasks()
-        }
-      )
-      .subscribe((status) => {
-        console.log('Realtime subscription status:', status)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
+        fetchTasks()
       })
+      .subscribe()
 
-    return () => {
-      subscription.unsubscribe()
-    }
+    return () => { subscription.unsubscribe() }
   }, [fetchTasks])
 
-  // Filter tasks based on search and project
   const filteredTasks = tasks.filter((task) => {
     const matchesSearch =
       task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       task.description?.toLowerCase().includes(searchTerm.toLowerCase())
-
     const matchesProject = selectedProject === 'all' || task.project_slug === selectedProject
-
     return matchesSearch && matchesProject
   })
 
   const getTasksByStatus = (status: TaskStatus) =>
     filteredTasks.filter((task) => task.status === status)
 
-  // Drag and Drop handlers
   const handleDragStart = (e: React.DragEvent, task: Task) => {
     setDraggedTask(task)
     e.dataTransfer.effectAllowed = 'move'
-    // Add visual feedback
-    if (e.currentTarget instanceof HTMLElement) {
-      e.currentTarget.style.opacity = '0.5'
-    }
+    if (e.currentTarget instanceof HTMLElement) e.currentTarget.style.opacity = '0.5'
   }
 
   const handleDragEnd = (e: React.DragEvent) => {
     setDraggedTask(null)
     setDragOverColumn(null)
-    // Reset visual feedback
-    if (e.currentTarget instanceof HTMLElement) {
-      e.currentTarget.style.opacity = '1'
-    }
+    if (e.currentTarget instanceof HTMLElement) e.currentTarget.style.opacity = '1'
   }
 
   const handleDragOver = (e: React.DragEvent, columnStatus: TaskStatus) => {
@@ -627,9 +559,7 @@ export default function TasksPage() {
     setDragOverColumn(columnStatus)
   }
 
-  const handleDragLeave = () => {
-    setDragOverColumn(null)
-  }
+  const handleDragLeave = () => { setDragOverColumn(null) }
 
   const handleDrop = async (e: React.DragEvent, newStatus: TaskStatus) => {
     e.preventDefault()
@@ -643,32 +573,18 @@ export default function TasksPage() {
     const oldStatus = draggedTask.status
     const taskId = draggedTask.id
 
-    // Optimistic update - update local state immediately
     updateTask(taskId, {
       status: newStatus,
       completed_at: newStatus === 'done' ? new Date().toISOString() : (oldStatus === 'done' ? null : undefined)
     })
 
-    // Prepare update data for Supabase
     const updateData: Record<string, unknown> = { status: newStatus }
+    if (newStatus === 'done') updateData.completed_at = new Date().toISOString()
+    else if (oldStatus === 'done') updateData.completed_at = null
 
-    // If moving to done, set completed_at
-    if (newStatus === 'done') {
-      updateData.completed_at = new Date().toISOString()
-    } else if (oldStatus === 'done') {
-      // If moving out of done, clear completed_at
-      updateData.completed_at = null
-    }
-
-    // Update in Supabase
-    const { error } = await supabase
-      .from('tasks')
-      .update(updateData)
-      .eq('id', taskId)
-
+    const { error } = await supabase.from('tasks').update(updateData).eq('id', taskId)
     if (error) {
       console.error('Error updating task status:', error)
-      // Revert on error
       updateTask(taskId, {
         status: oldStatus,
         completed_at: oldStatus === 'done' ? draggedTask.completed_at : null
@@ -678,9 +594,7 @@ export default function TasksPage() {
     setDraggedTask(null)
   }
 
-  // Create new task handler
   const handleCreateTask = async (taskData: Omit<Task, 'id' | 'created_at' | 'completed_at'>) => {
-    // Try to insert with relation first
     const { data, error } = await supabase
       .from('tasks')
       .insert([taskData])
@@ -688,27 +602,18 @@ export default function TasksPage() {
       .single()
 
     if (error) {
-      console.error('Error creating task with relation:', error)
-      // Try without relation
       const { data: taskOnly, error: taskError } = await supabase
         .from('tasks')
         .insert([taskData])
         .select('*')
         .single()
-
-      if (taskError) {
-        throw taskError
-      }
-
-      if (taskOnly) {
-        addTask(taskOnly as Task)
-      }
+      if (taskError) throw taskError
+      if (taskOnly) addTask(taskOnly as Task)
     } else if (data) {
       addTask(data as Task)
     }
   }
 
-  // Task counts per column
   const taskCounts = {
     pending: getTasksByStatus('pending').length,
     in_progress: getTasksByStatus('in_progress').length,
@@ -717,46 +622,46 @@ export default function TasksPage() {
 
   const totalTasks = taskCounts.pending + taskCounts.in_progress + taskCounts.done
 
-  // Loading state
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="flex flex-col items-center gap-4 text-muted">
           <Loader2 className="w-8 h-8 animate-spin text-accent" />
-          <span>Cargando tareas desde Supabase...</span>
+          <span>Cargando tareas...</span>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen p-6">
+    <div className="min-h-screen p-4 md:p-6">
       {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-6">
+      <div className="mb-5 md:mb-8">
+        <div className="flex items-start justify-between mb-4 md:mb-6 gap-3">
           <div>
-            <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-              <FolderKanban className="w-8 h-8 text-accent" />
-              Tablero Kanban
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground flex items-center gap-2 md:gap-3">
+              <FolderKanban className="w-6 h-6 md:w-8 md:h-8 text-accent flex-shrink-0" />
+              <span>Kanban</span>
             </h1>
-            <p className="text-muted mt-1">
-              Gestion de tareas con actualizaciones en tiempo real
+            <p className="text-muted mt-1 text-sm hidden md:block">
+              Gestion de tareas en tiempo real
             </p>
           </div>
           <button
-            className="btn btn-primary"
+            type="button"
+            className="btn btn-primary !px-3 md:!px-4 flex-shrink-0"
             onClick={() => setIsCreateModalOpen(true)}
           >
-            <Plus className="w-4 h-4 mr-2" />
-            Nueva Tarea
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline ml-2">Nueva Tarea</span>
+            <span className="sm:hidden ml-1 text-sm">Nueva</span>
           </button>
         </div>
 
         {/* Filters */}
         {tasks.length > 0 && (
-          <div className="flex flex-wrap gap-4 items-center">
-            {/* Search */}
-            <div className="relative flex-1 max-w-md">
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+            <div className="relative flex-1 w-full sm:max-w-xs">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
               <input
                 type="text"
@@ -767,28 +672,23 @@ export default function TasksPage() {
               />
             </div>
 
-            {/* Project filter */}
-            <div className="flex items-center gap-2">
-              <label className="text-sm text-muted">Filtrar por proyecto:</label>
-              <select
-                value={selectedProject}
-                onChange={(e) => setSelectedProject(e.target.value)}
-                className="input min-w-[200px]"
-              >
-                <option value="all">Todos los proyectos</option>
-                {projects.map((project) => (
-                  <option key={project.id} value={project.slug}>
-                    {project.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <select
+              aria-label="Filtrar por proyecto"
+              value={selectedProject}
+              onChange={(e) => setSelectedProject(e.target.value)}
+              className="input w-full sm:w-auto sm:min-w-[180px]"
+            >
+              <option value="all">Todos los proyectos</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.slug}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
 
-            {/* Task counter */}
-            <div className="text-sm text-muted ml-auto">
+            <span className="text-sm text-muted hidden sm:block ml-auto whitespace-nowrap">
               {totalTasks} tarea{totalTasks !== 1 ? 's' : ''}
-              {selectedProject !== 'all' && ` en ${projects.find(p => p.slug === selectedProject)?.name || selectedProject}`}
-            </div>
+            </span>
           </div>
         )}
       </div>
@@ -797,68 +697,142 @@ export default function TasksPage() {
       {totalTasks === 0 && tasks.length === 0 ? (
         <EmptyTasksState onCreateClick={() => setIsCreateModalOpen(true)} />
       ) : (
-        <div className="flex gap-6 overflow-x-auto pb-4">
-          {columns.map((column, colIndex) => {
-            const columnTasks = getTasksByStatus(column.id)
-            const isDropTarget = dragOverColumn === column.id && draggedTask?.status !== column.id
-
-            return (
-              <motion.div
-                key={column.id}
-                className={`kanban-column transition-all duration-200 ${
-                  isDropTarget ? 'ring-2 ring-accent ring-offset-2 ring-offset-background' : ''
-                }`}
-                onDragOver={(e) => handleDragOver(e, column.id)}
-                onDragLeave={handleDragLeave}
-                onDrop={(e) => handleDrop(e, column.id)}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: colIndex * 0.1 }}
-              >
-                {/* Column Header */}
-                <div className="flex items-center justify-between mb-4 sticky top-0 bg-card/50 backdrop-blur-sm py-2 -mt-2 -mx-4 px-4">
-                  <div className="flex items-center gap-2">
+        <>
+          {/* ── MOBILE: Column tabs ── */}
+          <div className="md:hidden mb-4">
+            <div className="flex rounded-xl bg-background/50 p-1 gap-1">
+              {columns.map((col) => {
+                const isActive = mobileActiveColumn === col.id
+                return (
+                  <button
+                    key={col.id}
+                    type="button"
+                    onClick={() => setMobileActiveColumn(col.id)}
+                    className="relative flex-1 flex flex-col items-center py-2.5 px-1 rounded-lg transition-all"
+                  >
+                    {isActive && (
+                      <motion.div
+                        layoutId="mobileKanbanTab"
+                        className="absolute inset-0 bg-card rounded-lg shadow-sm border border-border"
+                        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                      />
+                    )}
                     <span
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: column.color }}
-                    />
-                    <h3 className="font-semibold text-foreground">{column.title}</h3>
+                      className="relative z-10 text-[11px] font-semibold"
+                      style={{ color: isActive ? col.color : undefined }}
+                    >
+                      {col.title}
+                    </span>
                     <motion.span
-                      key={taskCounts[column.id]}
+                      key={taskCounts[col.id]}
                       initial={{ scale: 0.8 }}
                       animate={{ scale: 1 }}
-                      className="px-2 py-0.5 text-xs font-medium bg-background rounded-full text-muted"
+                      className="relative z-10 text-lg font-bold leading-tight"
+                      style={{ color: isActive ? col.color : undefined }}
                     >
-                      {taskCounts[column.id]}
+                      {taskCounts[col.id]}
                     </motion.span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* ── MOBILE: Single column view ── */}
+          <div className="md:hidden">
+            <AnimatePresence mode="wait">
+              {columns.map((column) => {
+                if (column.id !== mobileActiveColumn) return null
+                const columnTasks = getTasksByStatus(column.id)
+
+                return (
+                  <motion.div
+                    key={column.id}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.2 }}
+                    className="space-y-3"
+                  >
+                    {columnTasks.length === 0 ? (
+                      <EmptyColumnState status={column.id} />
+                    ) : (
+                      <AnimatePresence mode="popLayout">
+                        {columnTasks.map((task, index) => (
+                          <TaskCard
+                            key={task.id}
+                            task={task}
+                            index={index}
+                            onDragStart={handleDragStart}
+                            onDragEnd={handleDragEnd}
+                          />
+                        ))}
+                      </AnimatePresence>
+                    )}
+                  </motion.div>
+                )
+              })}
+            </AnimatePresence>
+          </div>
+
+          {/* ── DESKTOP: Full kanban 3-column ── */}
+          <div className="hidden md:flex gap-6 overflow-x-auto pb-4">
+            {columns.map((column, colIndex) => {
+              const columnTasks = getTasksByStatus(column.id)
+              const isDropTarget = dragOverColumn === column.id && draggedTask?.status !== column.id
+
+              return (
+                <motion.div
+                  key={column.id}
+                  className={`kanban-column transition-all duration-200 ${
+                    isDropTarget ? 'ring-2 ring-accent ring-offset-2 ring-offset-background' : ''
+                  }`}
+                  onDragOver={(e) => handleDragOver(e, column.id)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, column.id)}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: colIndex * 0.1 }}
+                >
+                  <div className="flex items-center justify-between mb-4 sticky top-0 bg-card/50 backdrop-blur-sm py-2 -mt-2 -mx-4 px-4">
+                    <div className="flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full" style={{ backgroundColor: column.color }} />
+                      <h3 className="font-semibold text-foreground">{column.title}</h3>
+                      <motion.span
+                        key={taskCounts[column.id]}
+                        initial={{ scale: 0.8 }}
+                        animate={{ scale: 1 }}
+                        className="px-2 py-0.5 text-xs font-medium bg-background rounded-full text-muted"
+                      >
+                        {taskCounts[column.id]}
+                      </motion.span>
+                    </div>
                   </div>
-                </div>
 
-                {/* Tasks */}
-                <div className="space-y-2 min-h-[200px]">
-                  <AnimatePresence mode="popLayout">
-                    {columnTasks.map((task, index) => (
-                      <TaskCard
-                        key={task.id}
-                        task={task}
-                        index={index}
-                        onDragStart={handleDragStart}
-                        onDragEnd={handleDragEnd}
-                      />
-                    ))}
-                  </AnimatePresence>
+                  <div className="space-y-2 min-h-[200px]">
+                    <AnimatePresence mode="popLayout">
+                      {columnTasks.map((task, index) => (
+                        <TaskCard
+                          key={task.id}
+                          task={task}
+                          index={index}
+                          onDragStart={handleDragStart}
+                          onDragEnd={handleDragEnd}
+                        />
+                      ))}
+                    </AnimatePresence>
 
-                  {columnTasks.length === 0 && (
-                    <EmptyColumnState status={column.id} />
-                  )}
-                </div>
-              </motion.div>
-            )
-          })}
-        </div>
+                    {columnTasks.length === 0 && (
+                      <EmptyColumnState status={column.id} />
+                    )}
+                  </div>
+                </motion.div>
+              )
+            })}
+          </div>
+        </>
       )}
 
-      {/* Create Task Modal */}
       <AnimatePresence>
         {isCreateModalOpen && (
           <CreateTaskModal

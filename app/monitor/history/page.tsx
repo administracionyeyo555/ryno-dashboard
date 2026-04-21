@@ -96,38 +96,31 @@ export default function HistoryPage() {
   }
 
   return (
-    <div className="min-h-screen p-6">
+    <div className="min-h-screen p-4 md:p-6">
       {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 md:mb-8">
+        <div className="flex items-start justify-between mb-4 md:mb-6 gap-3">
           <div>
-            <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-              <Clock className="w-8 h-8 text-accent" />
-              Historial de Eventos
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground flex items-center gap-2 md:gap-3">
+              <Clock className="w-6 h-6 md:w-8 md:h-8 text-accent flex-shrink-0" />
+              <span>Historial</span>
             </h1>
-            <p className="text-muted mt-1">
-              Timeline real de actividad de agentes desde Supabase
-              <span className="mx-2">-</span>
-              <span className="text-xs">
-                Actualizado {formatRelativeTime(lastUpdate)}
-              </span>
+            <p className="text-muted mt-1 text-xs md:text-sm">
+              <span className="hidden md:inline">Timeline desde Supabase · </span>
+              Actualizado {formatRelativeTime(lastUpdate)}
               {totalCount > 0 && (
-                <>
-                  <span className="mx-2">-</span>
-                  <span className="text-xs text-accent">
-                    {totalCount} eventos totales
-                  </span>
-                </>
+                <span className="text-accent ml-2">· {totalCount} eventos</span>
               )}
             </p>
           </div>
           <button
+            type="button"
             onClick={refetch}
-            className="btn btn-secondary"
+            className="btn btn-secondary !px-2.5 md:!px-4 flex-shrink-0"
             disabled={loading}
           >
-            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Actualizar
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline ml-2">Actualizar</span>
           </button>
         </div>
 
@@ -149,6 +142,7 @@ export default function HistoryPage() {
             {availableEventTypes.map((type) => (
               <button
                 key={type}
+                type="button"
                 onClick={() =>
                   setSelectedEventType(
                     selectedEventType === type ? null : type
@@ -183,6 +177,7 @@ export default function HistoryPage() {
             </h3>
             {hasActiveFilters && (
               <button
+                type="button"
                 onClick={clearFilters}
                 className="text-xs text-muted hover:text-foreground flex items-center gap-1"
               >
@@ -217,6 +212,7 @@ export default function HistoryPage() {
               </label>
               <div className="relative">
                 <select
+                  aria-label="Filtrar por proyecto"
                   value={selectedProject || ''}
                   onChange={(e) => setSelectedProject(e.target.value || null)}
                   className="input pr-8 appearance-none cursor-pointer w-full"
@@ -239,6 +235,7 @@ export default function HistoryPage() {
               </label>
               <div className="relative">
                 <select
+                  aria-label="Filtrar por tipo de evento"
                   value={selectedEventType || ''}
                   onChange={(e) => setSelectedEventType(e.target.value || null)}
                   className="input pr-8 appearance-none cursor-pointer w-full"
@@ -291,7 +288,7 @@ export default function HistoryPage() {
               {searchTerm && (
                 <span className="px-2 py-0.5 bg-accent/10 text-accent text-xs rounded-full flex items-center gap-1">
                   Archivo: {searchTerm}
-                  <button onClick={() => setSearchTerm('')} className="hover:text-accent/80">
+                  <button type="button" aria-label="Quitar filtro de archivo" onClick={() => setSearchTerm('')} className="hover:text-accent/80">
                     <X className="w-3 h-3" />
                   </button>
                 </span>
@@ -299,7 +296,7 @@ export default function HistoryPage() {
               {selectedProject && (
                 <span className="px-2 py-0.5 bg-accent/10 text-accent text-xs rounded-full flex items-center gap-1">
                   Proyecto: {projects.find(p => p.slug === selectedProject)?.name || selectedProject}
-                  <button onClick={() => setSelectedProject(null)} className="hover:text-accent/80">
+                  <button type="button" aria-label="Quitar filtro de proyecto" onClick={() => setSelectedProject(null)} className="hover:text-accent/80">
                     <X className="w-3 h-3" />
                   </button>
                 </span>
@@ -307,7 +304,7 @@ export default function HistoryPage() {
               {selectedEventType && (
                 <span className="px-2 py-0.5 bg-accent/10 text-accent text-xs rounded-full flex items-center gap-1">
                   Tipo: {eventTypeLabels[selectedEventType] || selectedEventType}
-                  <button onClick={() => setSelectedEventType(null)} className="hover:text-accent/80">
+                  <button type="button" aria-label="Quitar filtro de tipo" onClick={() => setSelectedEventType(null)} className="hover:text-accent/80">
                     <X className="w-3 h-3" />
                   </button>
                 </span>
@@ -315,7 +312,7 @@ export default function HistoryPage() {
               {(dateFrom || dateTo) && (
                 <span className="px-2 py-0.5 bg-accent/10 text-accent text-xs rounded-full flex items-center gap-1">
                   Fechas: {dateFrom || '...'} - {dateTo || '...'}
-                  <button onClick={() => { setDateFrom(''); setDateTo(''); }} className="hover:text-accent/80">
+                  <button type="button" aria-label="Quitar filtro de fechas" onClick={() => { setDateFrom(''); setDateTo(''); }} className="hover:text-accent/80">
                     <X className="w-3 h-3" />
                   </button>
                 </span>

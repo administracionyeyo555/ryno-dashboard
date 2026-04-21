@@ -180,30 +180,32 @@ export default function ProjectsPage() {
   }
 
   return (
-    <div className="min-h-screen p-6">
+    <div className="min-h-screen p-4 md:p-6">
       {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 md:mb-8">
+        <div className="flex items-start justify-between mb-4 md:mb-6 gap-3">
           <div>
-            <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-              <Folder className="w-8 h-8 text-accent" />
-              Proyectos
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground flex items-center gap-2 md:gap-3">
+              <Folder className="w-6 h-6 md:w-8 md:h-8 text-accent flex-shrink-0" />
+              <span>Proyectos</span>
             </h1>
-            <p className="text-muted mt-1">
-              Vista general de todos los proyectos activos con metricas Git reales
+            <p className="text-muted mt-1 text-sm hidden md:block">
+              Vista general con metricas Git reales
             </p>
           </div>
           <button
+            type="button"
             onClick={() => setShowCreateModal(true)}
-            className="px-4 py-2 bg-accent text-white rounded-lg flex items-center gap-2 hover:bg-accent/90 transition-colors"
+            className="px-3 py-2 md:px-4 md:py-2 bg-accent text-white rounded-lg flex items-center gap-2 hover:bg-accent/90 transition-colors text-sm flex-shrink-0"
           >
             <Plus className="w-4 h-4" />
-            Nuevo Proyecto
+            <span className="hidden sm:inline">Nuevo</span>
+            <span className="sm:hidden">+</span>
           </button>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4 mb-4 md:mb-6">
           <motion.div
             className="bg-card border border-border rounded-xl p-4"
             initial={{ opacity: 0, y: 10 }}
@@ -257,7 +259,7 @@ export default function ProjectsPage() {
         </div>
 
         {/* Search */}
-        <div className="relative max-w-md">
+        <div className="relative w-full md:max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
           <input
             type="text"
@@ -270,7 +272,7 @@ export default function ProjectsPage() {
       </div>
 
       {/* Projects Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
         {filteredProjects.map((project, index) => {
           const metrics = gitMetrics[project.slug] || defaultMetrics
 
