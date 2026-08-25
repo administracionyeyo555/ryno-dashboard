@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { timingSafeEqual } from 'crypto'
 
 // Server-side Supabase client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -25,7 +26,32 @@ interface StaleSessionResult {
  *
  * Stale sessions are marked as 'stopped' with ended_at set to current timestamp
  */
-export async function POST() {
+/**
+ * Esta ruta apaga sesiones con la SERVICE_ROLE_KEY, así que no puede quedar
+ * abierta: cualquiera con la URL podría marcar como detenidas las sesiones que
+ * están corriendo. Se autoriza con el patrón de Vercel Cron —el header
+ * Authorization: Bearer <CRON_SECRET>—, que Vercel manda solo cuando el secreto
+ * está definido en el proyecto.
+ *
+ * Cerrada por defecto: si CRON_SECRET no existe, la ruta no corre. Vale más un
+ * cron que falle ruidosamente que una ruta abierta en silencio.
+ */
+function autorizado(request: NextRequest): boolean {
+  const secreto = process.env.CRON_SECRET
+  if (!secreto) return false
+
+  const recibido = request.headers.get('authorization') || ''
+  const esperado = `Bearer ${secreto}`
+  const a = Buffer.from(recibido)
+  const b = Buffer.from(esperado)
+  return a.length === b.length && timingSafeEqual(a, b)
+}
+
+const NO_AUTORIZADO = NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+export async function POST(request: NextRequest) {
+  if (!autorizado(request)) return NO_AUTORIZADO
+
   try {
     const now = new Date()
     const thresholdTime = new Date(now.getTime() - STALE_THRESHOLD_MINUTES * 60 * 1000)
@@ -149,9 +175,11 @@ export async function POST() {
   }
 }
 
-// Also support GET for manual testing/debugging
-export async function GET() {
-  // Just return info about what this endpoint does
+// GET informativo, para probar a mano que el cron está bien configurado.
+// Va detrás del mismo secreto: si no, sirve para descubrir que la ruta existe.
+export async function GET(request: NextRequest) {
+  if (!autorizado(request)) return NO_AUTORIZADO
+
   return NextResponse.json({
     description: 'Cleanup stale agent sessions',
     method: 'POST to execute cleanup',
